@@ -8,7 +8,7 @@ admin.site.register(Product_list)
 admin.site.register(Customer)
 admin.site.register(Login)
 admin.site.register(Cart_items)
-admin.site.register(Order_list)
+admin.site.register(Order_products)
 
 
 

@@ -10,6 +10,7 @@ class Customer(models.Model):
     profile_image = models.ImageField(upload_to='media/')
     discount_individual = models.CharField(max_length=20, blank=True)
     search_history = models.JSONField(default=list, blank=True)
+    permanent_adress = models.TextField(blank=True)
 
 
     def add_search_term(self, term):
@@ -97,24 +98,34 @@ class Cart_items(models.Model):
     user_id = models.CharField(max_length=10)
     products = models.JSONField(default=list)
     
-    def cart_add(self, product_list):
-        if not isinstance(product_list, list):  # Ensure it's a list of dicts
+    def cart_add(self, products):
+        if not isinstance(products, list):  # Ensure it's a list of dicts
             raise ValidationError("Products must be a list of dictionaries.")
 
         # Ensure all elements in the list are dictionaries
-        if not all(isinstance(item, dict) for item in product_list):
+        if not all(isinstance(item, dict) for item in products):
             raise ValidationError("Each product must be a dictionary.")
 
-        self.products.extend(product_list)  # Append new products
+        self.products.extend(products)  # Append new products
         self.save() 
 
     def __str__(self):
         return self.user_id
 
 
-class Order_list(models.Model):
+class Order_products(models.Model):
     user_id = models.CharField(max_length=20)
-    products_items = models.JSONField(default=list)
+    product_items = models.JSONField(default=list)
+
+
+    def order_add(self, products):
+        
+        # Ensure all elements in the list are dictionaries
+        if not all(isinstance(item, dict) for item in products):
+            raise ValidationError("Each product must be a dictionary.")
+
+        self.product_items.extend(products)  # Append new products
+        self.save() 
 
     def __str__(self):
         return self.user_id

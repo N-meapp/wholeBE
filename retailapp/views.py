@@ -463,8 +463,6 @@ class Adding_cart(APIView):
             a="40"
             print(type(a))
 
-
-
             user = request.session['author']
             print('Current author is:', user)
 
@@ -545,3 +543,81 @@ class Adding_cart(APIView):
             return Response(cart_data)  
 
         return Response({"error": "No session found"}, status=403)
+
+
+class order_products(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self,request):
+        user_id = request.data.get('user_id')
+        products = request.data.get('products')
+
+        print("Received user_id:", user_id)
+        print("Received products:", products)
+
+        # Validate data
+        if user_id is None or not isinstance(products, list):
+            return Response({"error": "Invalid data format (user_id missing or products is not a list)"}, status=400)
+
+        # Check if cart already exists for the user
+        order_products= Order_products.objects.filter(user_id=user_id).first()
+
+        if order_products:
+            # Update existing cart
+            order_products.order_add(products)
+            serializer = OrderSerializer(order_products)
+        else:
+            # Create new cart entry
+            order_products = Order_products.objects.create(user_id=user_id, product_items=products)
+            serializer = OrderSerializer(order_products)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    def get(self,request):
+        if "author" in request.session:
+            user = request.session['author']
+            print("the session holder:",user)
+            
+            if user is not None:
+                order_list = []
+                customer = Customer.objects.filter(username=user).first()
+                permanent_adress = customer.permanent_adress
+                check_order = Order_products.objects.filter(user_id=user).first()
+                print("the order item with user:",check_order)
+                if check_order:
+                    for products in check_order.product_items:
+                        product_id = products.get("product_id")
+                        print("the product id is:",product_id)
+                        product_list = Product_list.objects.filter(id = product_id).first()
+                        print("the product list is:",product_list) 
+
+                        order_list.append(
+                            {
+                                "user_id": user,
+                                "temp_adress": products.get('total_amount'),
+                                "permanent_adress": permanent_adress,
+                                "product_name": product_list.product_name,
+                                "product_images": product_list.product_images if product_list.product_images else None,
+                                "product_category": product_list.product_category,
+                                "product_stock": product_list.product_stock,
+                                "order_status":products.get('order_status'),
+                                "total_count": products.get('total_count'),
+                                "total_amount":  products.get('total_amount'),
+                            }
+                        )
+                        if not order_list:
+                            return Response({"error": "No products found in order_list"}, status=404)
+                    return Response(order_list)  
+                else:
+                    return Response({"error": "No product found for this username"})
+            else:
+                return Response({"error": "No User found"})
+        else:
+            return Response({"error": "No Session found"})
+
+                     
+
+
+
+
+
