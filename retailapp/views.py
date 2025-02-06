@@ -616,6 +616,10 @@ class order_products(APIView):
             return Response({"error": "No Session found"})
 
                      
+# class Update_order_status(APIView):
+#     def post(self,request):
+#         order_status = request.data
+#         print("the orderstatus request",order_status)
 
 
 
