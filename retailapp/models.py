@@ -11,7 +11,7 @@ class Customer(models.Model):
     discount_individual = models.CharField(max_length=20, blank=True)
     search_history = models.JSONField(default=list, blank=True)
     permanent_adress = models.TextField(blank=True)
-    status = models.CharField(max_length=30,blank=True)
+    status = models.BooleanField(default=True) 
 
 
     def add_search_term(self, term):

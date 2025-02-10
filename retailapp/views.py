@@ -728,15 +728,24 @@ class Total_counts_dashboard(APIView):
 class Update_customer_status(APIView):
     permission_classes = [AllowAny]
 
-    def patch(self,request,id):
-        status = request.data
-        print("the requested data is:",status)
-        if not isinstance(status,bool):
-            return Response({"error":"the request must be a boolean"})
-        else:
-            serializer = Register_custumerSerializer(status,partial=True)
-            serializer.save()
-            return Response(serializer.data)
+    def patch(self, request, id):
+        # Extract status from request data
+        status = request.data.get("status", None)
+
+        # Ensure status is a boolean
+        if not isinstance(status, bool):
+            return Response({"error": "The request must contain a boolean 'status' field."}, status=400)
+
+        # Get the customer object or return 404
+        customer = get_object_or_404(Customer, id=id)
+
+        # Convert boolean to a string to match CharField
+        customer.status = status  
+        customer.save()
+
+        # Serialize and return updated customer data
+        serializer = Register_custumerSerializer(customer)
+        return Response(serializer.data, status=200)
         
         
 
