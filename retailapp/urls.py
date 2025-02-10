@@ -7,7 +7,7 @@ urlpatterns = [
     path('api/product-category/', ProductCategoryView.as_view(), name='product-category'),
     path('api/Product_categoryUpdate/<int:id>/', Product_categoryUpdate.as_view(), name='Product_categoryUpdate'),
     path('api/ProductListPost/', ProductListPost.as_view(), name='ProductListPost'),
-    path('api/ProduclistView/', ProduclistView.as_view(), name='ProduclistView'),
+    # path('api/ProduclistView/', ProduclistView.as_view(), name='ProduclistView'),
     path('api/Register/', Register_custumer.as_view(), name='Register'),
     path('api/Login/', Login_view.as_view(), name='Login'),
     path('api/Logout/', Logout_view.as_view(), name='Logout'),
@@ -22,9 +22,5 @@ urlpatterns = [
     path('api/Update_order_status/', UpdateOrderStatus.as_view(), name='Update_order_status'),
     path('api/Total_counts_dashboard/', Total_counts_dashboard.as_view(), name='Total_counts_dashboard'),
     path('api/Update_customer_status/<int:id>/', Update_customer_status.as_view(), name='Update_customer_status'),
-
-
-
-
 
 ]

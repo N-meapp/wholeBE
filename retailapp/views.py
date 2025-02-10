@@ -44,12 +44,16 @@ class Login_view(APIView):
             password = data.get('password')
             print("the requested data",username,password)
 
-            check_items = Customer.objects.filter(username=username , password=password)
+            check_items = Customer.objects.filter(username=username , password=password).first()
             if check_items:
                 request.session["author"] = username
                 print("the seesion data",request.session["author"])
 
-                content = {'message': 'login successfully'}
+                content = {
+                    'message': 'login successfully',
+                    "username": check_items.username,
+                    "user_id": check_items.id
+                    }
                 return Response(content)
             else:
                 content = {'message': 'cant login now'}
@@ -171,51 +175,51 @@ class ProductListPost(APIView):
 
 
 
-class ProduclistView(APIView):
-    permission_classes = [AllowAny]
+# class ProduclistView(APIView):
+#     permission_classes = [AllowAny]
 
-    def get(self,request):
-        if "author" in request.session:
-            user = request.session.get('author')
-            print('author name is:',user)
-            username = Customer.objects.get(username=user)
-            print('username name is:',username)
-            response_data = []
-            try:
-                individual_discount = int(username.discount_individual)
-                print('individual_discount  is:',individual_discount)
-            except ValueError:
-                 individual_discount = 0
-            products = Product_list.objects.all()
-            for product in products:
-                product_prize = product.prize_range
-                print("product_prize is",product_prize)
-                discounted_prices = []
-                for prize in product_prize:
-                    if 'price' in prize:
-                        try:
-                            actual_prize = int(prize['price'])
-                            print("actual_prize is",actual_prize)
+#     def get(self,request):
+#         if "author" in request.session:
+#             user = request.session.get('author')
+#             print('author name is:',user)
+#             username = Customer.objects.get(username=user)
+#             print('username name is:',username)
+#             response_data = []
+#             try:
+#                 individual_discount = int(username.discount_individual)
+#                 print('individual_discount  is:',individual_discount)
+#             except ValueError:
+#                  individual_discount = 0
+#             products = Product_list.objects.all()
+#             for product in products:
+#                 product_prize = product.prize_range
+#                 print("product_prize is",product_prize)
+#                 discounted_prices = []
+#                 for prize in product_prize:
+#                     if 'price' in prize:
+#                         try:
+#                             actual_prize = int(prize['price'])
+#                             print("actual_prize is",actual_prize)
 
-                            final_discount = actual_prize - (actual_prize * individual_discount / 100)
-                            print("Final Price after Discount:", final_discount)
+#                             final_discount = actual_prize - (actual_prize * individual_discount / 100)
+#                             print("Final Price after Discount:", final_discount)
 
-                            discounted_prices.append({
-                                    "actual_price": actual_prize,
-                                    "final_discount": final_discount
-                                })
-                            print("the output array is",discounted_prices)
+#                             discounted_prices.append({
+#                                     "actual_price": actual_prize,
+#                                     "final_discount": final_discount
+#                                 })
+#                             print("the output array is",discounted_prices)
                             
-                        except ValueError:
-                            continue 
+#                         except ValueError:
+#                             continue 
                         
-                serializer = ProductListSerializer(product)
-                product_data = serializer.data
-                product_data['discounted_prices'] = discounted_prices  
+#                 serializer = ProductListSerializer(product)
+#                 product_data = serializer.data
+#                 product_data['discounted_prices'] = discounted_prices  
 
-                response_data.append(product_data)
+#                 response_data.append(product_data)
 
-        return Response(response_data, status=status.HTTP_200_OK)
+#         return Response(response_data, status=status.HTTP_200_OK)
 
 
  
