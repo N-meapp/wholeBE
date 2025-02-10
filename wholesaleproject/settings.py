@@ -159,19 +159,22 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  
 
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # Example for local React app
-    "https://your-frontend-domain.com",
+    "http://localhost:3000", 
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
 ]
 
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "https://your-frontend-domain.com",
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000", 
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
 ]
 
 
@@ -187,5 +190,6 @@ CORS_ALLOW_METHODS = [
 CORS_ALLOW_HEADERS = [
     "authorization",
     "content-type",
-    "x-requested-with"
+    "x-requested-with",
+    "x-csrftoken",
 ]
