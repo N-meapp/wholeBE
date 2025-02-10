@@ -18,7 +18,7 @@ class Register_custumer(APIView):
     def get(self,request):
         custumers = Customer.objects.all()
         serializer = Register_custumerSerializer(custumers,many =True)
-        return Response(serializer.data,status=status.HTTP_302_FOUND)
+        return Response(serializer.data,status.status.HTTP_200_Ok)
     
     def post(self,request):
         serializer = Register_custumerSerializer(data = request.data)
@@ -335,7 +335,7 @@ class Search_history(APIView):
             try:
                 # Fetch the user from the database
                 user = Customer.objects.get(username=user_name)
-                search_data = user.search_history
+                search_data = user.search_history   
                 print('the user search history:', search_data)
 
                 if not search_data:
@@ -384,7 +384,7 @@ class Home(APIView):
 
 
 # profile update
-class Profile_update(APIView):
+class Profile_update_custumer(APIView):
     permission_classes = [AllowAny]
 
     def get(self,request,id=None):
@@ -617,11 +617,144 @@ class order_products(APIView):
 
                      
 # class Update_order_status(APIView):
-#     def post(self,request):
-#         order_status = request.data
-#         print("the orderstatus request",order_status)
+#     permission_classes = [AllowAny]
+
+
+    # def patch(self, request):
+    #         order_reject = request.data.get('rejected_product', [])  # List of rejected product IDs
+    #         user_id = request.data.get('user_id')
+    #         order_id = request.data.get('order_id')
+
+    #         print("The rejected product list:", order_reject)
+
+    #         if not isinstance(order_reject, list):
+    #             return Response({"error": "Invalid data format. 'rejected_product' must be a list."}, status=400)
+
+    #         # Fetch all orders related to the user
+    #         order_list = Order_products.objects.filter(user_id=user_id)
+
+    #         if not order_list.exists():
+    #             return Response({"message": "No orders found for this user."}, status=404)
+
+    #         updated = False  # Track if any status is updated
+
+    #         for order in order_list:
+    #             product_items = order.product_items  # Copy the list from JSONField
+    #             print("the product_items",product_items)
+
+    #             for product in product_items:  # Assuming each product is a dictionary
+    #                 p_id = product.get('product_id')
+    #                 id_order = product.get('order_id')
+    #                 print("the order id and product_id is:",id_order,p_id)
+
+    #                 if p_id in order_reject and id_order == order_id:
+    #                     print(f"Updating product {p_id} in order {id_order}")
+    #                     product['order_status'] = "Rejected"  # Update order_status
+    #                     updated = True
+                    
+
+    #             if updated:
+    #                 # **Explicitly assign the modified list back to the model field**
+    #                 order.product_items = product_items
+    #                 order.save(update_fields=['product_items'])  # Save only this field
+    #                 print(f"Order {order.id} updated successfully")
+
+    #         if updated:
+    #             return Response({"message": "Order status updated to 'Rejected'."}, status=200)
+    #         else:
+    #             return Response({"message": "No matching orders found. Status remains unchanged."}, status=200)
+
+
+class UpdateOrderStatus(APIView):
+    permission_classes = [AllowAny]
+
+    def patch(self, request):
+        order_reject = request.data.get("rejected_product", [])  # List of rejected product IDs
+        user_id = request.data.get("user_id")
+        order_id = request.data.get("order_id")
+
+        print("The request data list:", order_reject, user_id, order_id)
+
+        # Fetch the order related to the user and order_id
+        order = Order_products.objects.filter(user_id=user_id).first()
+        print("The order data:", order)
+
+        if not order:
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Extracting product items (assuming JSONField or dictionary structure)
+        product_items_list = order.product_items  
+        print("The product_items_list data:", product_items_list)
+
+        updated = False  # Flag to check if any update happens
+
+        for item in product_items_list:
+            if item["order_id"] == order_id:
+                if item["product_id"] in order_reject:
+                    item["order_status"] = "rejected"
+                else:
+                    item["order_status"] = "accepted"
+                updated = True
+
+        # Save changes if any updates were made
+        if updated:
+            order.product_items = product_items_list
+            order.save(update_fields=["product_items"])  # Save only the modified field
+            print(f"Order {order.id} updated successfully")
+            return Response({"message": "Order updated successfully", "updated_items": product_items_list}, status=status.HTTP_200_OK)
+
+        return Response({"message": "No updates were made"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+# class Cancel_order(APIView):
+#     def delete(self,request):
+
+class Total_counts_dashboard(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self,request):
+        response_data = {
+            "total_products" : Product_list.objects.count(),
+            "total_category" : Product_Category.objects.count(),
+            }
+        return Response(response_data)
+
+
+class Update_customer_status(APIView):
+    permission_classes = [AllowAny]
+
+    def patch(self,request,id):
+        status = request.data
+        print("the requested data is:",status)
+        if not isinstance(status,bool):
+            return Response({"error":"the request must be a boolean"})
+        else:
+            serializer = Register_custumerSerializer(status,partial=True)
+            serializer.save()
+            return Response(serializer.data)
+        
+        
 
 
 
 
 
+
+
+
+
+
+
+
+# {"product_id": 24,
+#   "total_count": 20,
+#     "product_name": "mobile", "product_images": ["media/shoes1.jpg", "https://example.com/images/laptop3.jpg", "https://example.com/images/laptop3785.jpg", "https://example.com/images/laptop378787.jpg", "https://example.com/images/laptop3757858752.jpg"],
+#       "product_description": "sangu's product",
+#         "product_discount": "10",
+#           "individual_discount": 0.0, 
+#           "product_offer": "20",
+#             "product_category": "Electronics", "product_stock": "100", 
+#             "order_id": 3,
+#             "total_amount": 6300.0,
+#               "order_status": "Rejected"}

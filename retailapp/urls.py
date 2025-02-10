@@ -14,15 +14,14 @@ urlpatterns = [
     path('api/Search_history/', Search_history.as_view(), name='Search_history'),
     # path('Add_cart/', Add_cart.as_view(), name='Add_cart'),
     path('api/Newly_arrived/', Newly_arrived.as_view(), name='Newly_arrived'),
-    path('api/Profile_update/<int:id>/', Profile_update.as_view(), name='Profile_update'),
+    path('api/Profile_update_custumer/<int:id>/', Profile_update_custumer.as_view(), name='Profile_update_custumer'),
     path('api/Category_filter/', Category_filter.as_view(), name='Category_filter'),
     path('api/Product_updateanddelete/<int:id>/', Product_updateanddelete.as_view(), name='Product_updateanddelete'),
     path('api/Adding_cart/', Adding_cart.as_view(), name='Adding_cart'),
     path('api/order_products/', order_products.as_view(), name='order_products'),
-
-
-
-
+    path('api/Update_order_status/', UpdateOrderStatus.as_view(), name='Update_order_status'),
+    path('api/Total_counts_dashboard/', Total_counts_dashboard.as_view(), name='Total_counts_dashboard'),
+    path('api/Update_customer_status/<int:id>/', Update_customer_status.as_view(), name='Update_customer_status'),
 
 
 
