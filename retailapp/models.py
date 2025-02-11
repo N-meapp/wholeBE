@@ -11,6 +11,7 @@ class Customer(models.Model):
     discount_individual = models.CharField(max_length=20, blank=True)
     search_history = models.JSONField(default=list, blank=True)
     permanent_adress = models.TextField(blank=True)
+    phone_number = models.CharField(max_length=10)
     status = models.BooleanField(default=False) 
 
 

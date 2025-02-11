@@ -18,7 +18,7 @@ class Register_custumer(APIView):
     def get(self,request):
         custumers = Customer.objects.all()
         serializer = Register_custumerSerializer(custumers,many =True)
-        return Response(serializer.data,status.status.HTTP_200_Ok)
+        return Response(serializer.data,status=status.HTTP_200_OK)
     
     def post(self,request):
         serializer = Register_custumerSerializer(data = request.data)
