@@ -22,5 +22,7 @@ urlpatterns = [
     path('api/Update_order_status/', UpdateOrderStatus.as_view(), name='Update_order_status'),
     path('api/Total_counts_dashboard/', Total_counts_dashboard.as_view(), name='Total_counts_dashboard'),
     path('api/Update_customer_status/<int:id>/', Update_customer_status.as_view(), name='Update_customer_status'),
+    path('api/Total_orders_list/', Total_orders_list.as_view(), name='Total_orders_list'),
+
 
 ]

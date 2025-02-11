@@ -577,97 +577,60 @@ class order_products(APIView):
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
-    def get(self,request):
-        if "author" in request.session:
-            user = request.session['author']
-            print("the session holder:",user)
-            
-            if user is not None:
-                order_list = []
-                customer = Customer.objects.filter(username=user).first()
-                permanent_adress = customer.permanent_adress
-                check_order = Order_products.objects.filter(user_id=user).first()
-                print("the order item with user:",check_order)
-                if check_order:
-                    for products in check_order.product_items:
-                        product_id = products.get("product_id")
-                        print("the product id is:",product_id)
-                        product_list = Product_list.objects.filter(id = product_id).first()
-                        print("the product list is:",product_list) 
+    def get(self, request):
+            if "author" in request.session:
+                user = request.session["author"]
+                print("The session holder:", user)
 
-                        order_list.append(
-                            {
-                                "user_id": user,
-                                "temp_adress": products.get('total_amount'),
-                                "permanent_adress": permanent_adress,
-                                "product_name": product_list.product_name,
-                                "product_images": product_list.product_images if product_list.product_images else None,
-                                "product_category": product_list.product_category,
-                                "product_stock": product_list.product_stock,
-                                "order_status":products.get('order_status'),
-                                "total_count": products.get('total_count'),
-                                "total_amount":  products.get('total_amount'),
-                            }
-                        )
+                if user is not None:
+                    order_list = []
+                    customer = Customer.objects.filter(username=user).first()
+                    check_order = Order_products.objects.filter(user_id=user).first()
+                    print("The order item with user:", check_order)
+
+                    if check_order:
+                        for products in check_order.product_items:
+                            product_id = products.get("product_id")
+                            print("The product ID is:", product_id)
+
+                            # Fetch product from Product_list
+                            product_list = Product_list.objects.filter(id=product_id).first()
+                            if not product_list:
+                                print(f"Skipping product with ID {product_id} (Not Found)")
+                                continue  
+
+                            order_list.append(
+                                {
+                                    "user_id": user,
+                                    "temp_address": products.get("total_amount"),
+                                    "permanent_address": customer.permanent_adress,
+                                    "product_name": product_list.product_name,
+                                    "product_images": product_list.product_images
+                                    if product_list.product_images
+                                    else None,
+                                    "product_category": product_list.product_category,
+                                    "product_stock": product_list.product_stock,
+                                    "order_status": products.get("order_status"),
+                                    "total_count": products.get("total_count"),
+                                    "total_amount": products.get("total_amount"),
+                                }
+                            )
+
                         if not order_list:
-                            return Response({"error": "No products found in order_list"}, status=404)
-                    return Response(order_list)  
+                            return Response(
+                                {"error": "No products found in order_list"}, status=404
+                            )
+
+                        return Response(order_list)
+
+                    else:
+                        return Response({"error": "No product found for this username"})
+
                 else:
-                    return Response({"error": "No product found for this username"})
+                    return Response({"error": "No User found"})
+
             else:
-                return Response({"error": "No User found"})
-        else:
-            return Response({"error": "No Session found"})
-
-                     
-# class Update_order_status(APIView):
-#     permission_classes = [AllowAny]
-
-
-    # def patch(self, request):
-    #         order_reject = request.data.get('rejected_product', [])  # List of rejected product IDs
-    #         user_id = request.data.get('user_id')
-    #         order_id = request.data.get('order_id')
-
-    #         print("The rejected product list:", order_reject)
-
-    #         if not isinstance(order_reject, list):
-    #             return Response({"error": "Invalid data format. 'rejected_product' must be a list."}, status=400)
-
-    #         # Fetch all orders related to the user
-    #         order_list = Order_products.objects.filter(user_id=user_id)
-
-    #         if not order_list.exists():
-    #             return Response({"message": "No orders found for this user."}, status=404)
-
-    #         updated = False  # Track if any status is updated
-
-    #         for order in order_list:
-    #             product_items = order.product_items  # Copy the list from JSONField
-    #             print("the product_items",product_items)
-
-    #             for product in product_items:  # Assuming each product is a dictionary
-    #                 p_id = product.get('product_id')
-    #                 id_order = product.get('order_id')
-    #                 print("the order id and product_id is:",id_order,p_id)
-
-    #                 if p_id in order_reject and id_order == order_id:
-    #                     print(f"Updating product {p_id} in order {id_order}")
-    #                     product['order_status'] = "Rejected"  # Update order_status
-    #                     updated = True
-                    
-
-    #             if updated:
-    #                 # **Explicitly assign the modified list back to the model field**
-    #                 order.product_items = product_items
-    #                 order.save(update_fields=['product_items'])  # Save only this field
-    #                 print(f"Order {order.id} updated successfully")
-
-    #         if updated:
-    #             return Response({"message": "Order status updated to 'Rejected'."}, status=200)
-    #         else:
-    #             return Response({"message": "No matching orders found. Status remains unchanged."}, status=200)
-
+                return Response({"error": "No Session found"})
 
 class UpdateOrderStatus(APIView):
     permission_classes = [AllowAny]
@@ -718,9 +681,17 @@ class Total_counts_dashboard(APIView):
     permission_classes = [AllowAny]
 
     def get(self,request):
+        active_customer_count = Customer.objects.filter(status=True).count()
+        print("Active customers:", active_customer_count)
+
+        order_count = sum(len(order.product_items) for order in Order_products.objects.all() if isinstance(order.product_items, list))
+        print("Total product count in all orders:", order_count)
+
         response_data = {
             "total_products" : Product_list.objects.count(),
             "total_category" : Product_Category.objects.count(),
+            "active_customer_count":active_customer_count,
+            "order_count":order_count
             }
         return Response(response_data)
 
@@ -747,12 +718,44 @@ class Update_customer_status(APIView):
         serializer = Register_custumerSerializer(customer)
         return Response(serializer.data, status=200)
         
-        
 
 
+class Total_orders_list(APIView):
+    permission_classes = [AllowAny]
 
+    def get(self,request):
+        order_list = Order_products.objects.all()
+        if not order_list:
+            return Response({"error": "No order_list found"})
+        order_products = []
+        for orders in order_list:
+            user_id = orders.user_id
+            for products in orders.product_items:
+                product_id = products.get('product_id')
+                product_list = Product_list.objects.filter(id=product_id).first()
+                if not product_list:
+                    print(f"Skipping product with ID {product_id} (Not Found)")
+                    continue  
+                order_products.append(
+                    {
+                        'user_id':user_id,
+                        # "temp_address": products.get("total_amount"),
+                        "permanent_address": products.get('permanent_address'),
+                        "product_name": product_list.product_name,
+                        "product_images": product_list.product_images
+                        if product_list.product_images
+                        else None,
+                        "product_category": product_list.product_category,
+                        "product_stock": product_list.product_stock,
+                        "order_status": products.get("order_status"),
+                        "total_count": products.get("total_count"),
+                        "total_amount": products.get("total_amount"),
 
+                    }
+                )
 
+        return Response(order_products,status=200)
+            
 
 
 
