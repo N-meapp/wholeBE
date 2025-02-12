@@ -10,6 +10,7 @@ from django.core.files.storage import default_storage
 from rest_framework import status
 from .models import *
 from .serializers import *
+from django.db.models import Q
 
 
 class Register_custumer(APIView):
@@ -112,7 +113,7 @@ class Product_categoryUpdate(APIView):
         except Product_Category.DoesNotExist:
             return Response({"message: no Product_Category found"})
         category_name.delete()
-        return Response({"error": "Product deleted"}, status=400)
+        return Response({"message": "Product deleted"}, status=200)
 
 
 
@@ -225,6 +226,12 @@ class ProductListPost(APIView):
  
 class Product_updateanddelete(APIView):
     permission_classes = [AllowAny]
+
+    def get(self,request,id):
+        product = Product_list.objects.get(id = id)
+        serializer = ProductListSerializer(product)
+        return Response(serializer.data,status=200)
+
 
     def patch(self, request, id):
         try:
@@ -674,8 +681,35 @@ class UpdateOrderStatus(APIView):
 
 
 
-# class Cancel_order(APIView):
-#     def delete(self,request):
+class Cancel_order(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self,request):
+        if "author" in request.session:
+            username = request.session.get('author')
+            order_id = request.data.get('order_id')
+            order_list = Order_products.objects.filter(user_id=username).first()
+            print("the order_list",order_list)
+            for items in order_list.product_items:
+                order_id_product = items.get('order_id')
+                print("the order_id_product",order_id_product)
+                order_status = items.get('order_status')
+                print("the order_status",order_status)
+                if order_id_product == order_id and order_status =='null':
+                    items.pop()
+                # else:
+                #     return Response({"message":"the item not be cancelled"})
+            return Response({"message":"the item cancelled "})
+        else:
+            return Response({"message":"no session found "})
+
+
+
+
+
+
+
+
 
 class Total_counts_dashboard(APIView):
     permission_classes = [AllowAny]
@@ -757,20 +791,76 @@ class Total_orders_list(APIView):
         return Response(order_products,status=200)
             
 
+class Search_all(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        search_term = request.data.get("search_term", "").strip()
+
+        if not search_term:
+            return Response({"error": "Search term is required"}, status=400)
+
+        def search_products(search_term):
+            query = Q()
+            for field in Product_list._meta.get_fields():
+                if hasattr(field, "attname"):  # Ensures it's a valid field
+                    field_name = field.attname
+                    field_type = field.get_internal_type()
+
+                    # Apply filtering only to text-based fields
+                    if field_type in ["CharField", "TextField"]:
+                        query |= Q(**{f"{field_name}__icontains": search_term})  # Case-insensitive search
+
+            return Product_list.objects.filter(query)
+
+        products = search_products(search_term)
+
+        if not products.exists():
+            return Response({"message": "No matching products found"}, status=404)
+
+        product_data = [{ 
+            "id": p.id, "name": p.product_name, "category":p.product_category,"product_description":p.product_description,"product_images":p.product_images if p.product_images else None,"prize_range":p.prize_range,"product_discount":p.product_discount,
+            } for p in products]
+        return Response({"results": product_data}, status=200)
 
 
+class SearchAllCustomer(APIView):
+    permission_classes = [AllowAny]
 
+    def post(self, request):
+        search_term = request.data.get("search_term", "").strip()
 
+        if not search_term:
+            return Response({"error": "Search term is required"}, status=400)
 
+        def search_customers(search_term):
+            query = Q()
+            for field in Customer._meta.get_fields():
+                if hasattr(field, "attname"):  # Ensures it's a valid field
+                    field_name = field.attname
+                    field_type = field.get_internal_type()
 
-# {"product_id": 24,
-#   "total_count": 20,
-#     "product_name": "mobile", "product_images": ["media/shoes1.jpg", "https://example.com/images/laptop3.jpg", "https://example.com/images/laptop3785.jpg", "https://example.com/images/laptop378787.jpg", "https://example.com/images/laptop3757858752.jpg"],
-#       "product_description": "sangu's product",
-#         "product_discount": "10",
-#           "individual_discount": 0.0, 
-#           "product_offer": "20",
-#             "product_category": "Electronics", "product_stock": "100", 
-#             "order_id": 3,
-#             "total_amount": 6300.0,
-#               "order_status": "Rejected"}
+                    if field_type in ["CharField", "TextField"]:
+                        query |= Q(**{f"{field_name}__icontains": search_term})  # Case-insensitive search
+
+            return Customer.objects.filter(query)
+
+        customers = search_customers(search_term)
+
+        if not customers.exists():
+            return Response({"message": "No matching customers found"}, status=404)
+
+        product_data = [
+            {
+                "id": c.id,
+                "name": c.username,
+                "profile_image": request.build_absolute_uri(c.profile_image.url) if c.profile_image else None,
+                "discount_individual": c.discount_individual,
+                "permanent_adress":c.permanent_adress,
+                "phone_number":c.phone_number,
+                "status":c.status
+            }
+            for c in customers
+        ]
+
+        return Response({"results": product_data}, status=200)

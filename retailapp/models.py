@@ -131,3 +131,5 @@ class Order_products(models.Model):
 
     def __str__(self):
         return self.user_id
+
+
