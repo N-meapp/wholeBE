@@ -398,9 +398,9 @@ class Home(APIView):
 class Profile_update_custumer(APIView):
     permission_classes = [AllowAny]
 
-    def get(self,request,id=None):
-        customer = Customer.objects.all()
-        serializer = Register_custumerSerializer(customer,many=True)
+    def get(self,request,id):
+        customer = Customer.objects.get(id =id)
+        serializer = Register_custumerSerializer(customer)
         return Response(serializer.data)
 
     def patch(self, request, id):
