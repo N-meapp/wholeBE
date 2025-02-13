@@ -400,8 +400,12 @@ class Profile_update_custumer(APIView):
 
     def get(self,request,id):
         customer = Customer.objects.get(id =id)
-        serializer = Register_custumerSerializer(customer)
-        return Response(serializer.data)
+        if customer:
+            serializer = Register_custumerSerializer(customer)
+            return Response(serializer.data,status=200)
+        else:
+            return Response({"error": "Customer not found"},status=400)
+
 
     def patch(self, request, id):
         try:
