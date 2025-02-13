@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 class Customer(models.Model):
     username = models.CharField(max_length=30)
     password = models.CharField(max_length=80)
-    profile_image = models.ImageField(upload_to='media/')
+    profile_image = models.ImageField(upload_to='media/',blank=True)
     discount_individual = models.CharField(max_length=20, blank=True)
     search_history = models.JSONField(default=list, blank=True)
     permanent_adress = models.TextField(blank=True)

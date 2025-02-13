@@ -414,6 +414,15 @@ class Profile_update_custumer(APIView):
             serializer.save()
             return Response(serializer.data, status=200)
         return Response(serializer.errors, status=400)
+    
+    def delete(self,request,id):
+        customer = Customer.objects.get(id=id)
+        if customer:
+            customer.delete()
+            return Response({"message": "Customer deleted"}, status=200)
+        else:
+            return Response({"error": "Customer not found"}, status=400)
+
 
 # category filtering homescreen
 class Category_filter(APIView):
