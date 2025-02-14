@@ -11,6 +11,9 @@ from rest_framework import status
 from .models import *
 from .serializers import *
 from django.db.models import Q
+from django.core.files.uploadedfile import UploadedFile
+import json
+from django.conf import settings
 
 
 class Register_custumer(APIView):
@@ -56,8 +59,19 @@ class Login_view(APIView):
                     "user_id": check_items.id
                     }
                 return Response(content)
+            elif Administrator.objects.filter(username=username, password=password).exists():
+                admin_user = Administrator.objects.get(username=username, password=password)
+                
+                content = {
+                    'message': 'Login successfully',
+                    'username': admin_user.username,  
+                    'user_id': admin_user.id    
+                }
+                
+                return Response(content, status=200)
+
             else:
-                content = {'message': 'cant login now'}
+                content = {'message': 'user name is incorrect'}
                 return Response(content)
         return Response(data.errors, status=400)
 
@@ -119,62 +133,120 @@ class Product_categoryUpdate(APIView):
 
 
 
-class ProductListPost(APIView):
-    permission_classes = [AllowAny]
+# class ProductListPost(APIView):
+#     permission_classes = [AllowAny]
     
-    def get(self,request):
-        product = Product_list.objects.all()
-        serializer = ProductListSerializer(product, many = True)
-        return Response(serializer.data)
+#     def get(self,request):
+#         product = Product_list.objects.all()
+#         serializer = ProductListSerializer(product, many = True)
+#         return Response(serializer.data)
     
 
+#     def post(self, request):
+#         product_data = request.data  # Expecting a single dictionary
+
+#         if not isinstance(product_data, dict):
+#             return Response({"error": "Invalid format. Expected a dictionary."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:    
+#             # Extract product details
+#             prize_list = product_data.get('prize_range', [])
+#             image_list = product_data.get('product_images', [])
+
+#             # Validate prize_list
+#             if not isinstance(prize_list, list) or any(not isinstance(prize, dict) for prize in prize_list):
+#                 return Response({"error": "prize_range must be a list of dictionaries."}, status=status.HTTP_400_BAD_REQUEST)
+
+#             # Validate image_list
+#             if not isinstance(image_list, list) or any(not isinstance(img, UploadedFile) for img in image_list):
+#                 return Response({"error": "product_images must be a list of UploadedFile (URLs or file paths)."},
+#                                 status=status.HTTP_400_BAD_REQUEST)
+
+#             # Create product instance
+#             product = Product_list.objects.create(
+#                 product_name=product_data.get('product_name', 'Default Name'),
+#                 product_images=[],  # Start empty
+#                 product_description=product_data.get('product_description', 'Default Description'),
+#                 product_discount=product_data.get('product_discount', '0%'),
+#                 product_offer=product_data.get('product_offer', 'No Offer'),
+#                 product_category=product_data.get('product_category', 'Miscellaneous'),
+#                 prize_range=[],  # Start empty
+#                 product_stock=product_data.get('product_stock', '0')
+#             )
+
+#             # Store up to 3 prize ranges
+#             for prize in prize_list[:3]:  
+#                 product.add_prize_range(prize)
+
+#             # Store up to 5 images
+#             for image in image_list[:5]:  
+#                 product.add_image(image)
+
+#             serializer = ProductListSerializer(product)
+#             return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+#         except ValidationError as e:
+#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class ProductListPost(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        products = Product_list.objects.all()
+        serializer = ProductListSerializer(products, many=True)
+        return Response(serializer.data)
+
     def post(self, request):
-        product_data = request.data  # Expecting a single dictionary
+        product_data = request.data  
 
         if not isinstance(product_data, dict):
             return Response({"error": "Invalid format. Expected a dictionary."}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:    
+        try:
             # Extract product details
             prize_list = product_data.get('prize_range', [])
-            image_list = product_data.get('product_images', [])
+            image_list = request.FILES.getlist('product_images')  # Fix image handling
 
             # Validate prize_list
             if not isinstance(prize_list, list) or any(not isinstance(prize, dict) for prize in prize_list):
                 return Response({"error": "prize_range must be a list of dictionaries."}, status=status.HTTP_400_BAD_REQUEST)
 
             # Validate image_list
-            if not isinstance(image_list, list) or any(not isinstance(img, str) for img in image_list):
-                return Response({"error": "product_images must be a list of strings (URLs or file paths)."},
+            if not isinstance(image_list, list) or any(not hasattr(img, 'read') for img in image_list):
+                return Response({"error": "product_images must be a list of image files."},
                                 status=status.HTTP_400_BAD_REQUEST)
 
             # Create product instance
             product = Product_list.objects.create(
                 product_name=product_data.get('product_name', 'Default Name'),
-                product_images=[],  # Start empty
+                product_images=[],  # Empty initially
                 product_description=product_data.get('product_description', 'Default Description'),
                 product_discount=product_data.get('product_discount', '0%'),
                 product_offer=product_data.get('product_offer', 'No Offer'),
                 product_category=product_data.get('product_category', 'Miscellaneous'),
-                prize_range=[],  # Start empty
+                prize_range=[],
                 product_stock=product_data.get('product_stock', '0')
             )
 
             # Store up to 3 prize ranges
-            for prize in prize_list[:3]:  
+            for prize in prize_list[:3]:
                 product.add_prize_range(prize)
 
             # Store up to 5 images
-            for image in image_list[:5]:  
-                product.add_image(image)
+            image_urls = []
+            for image in image_list[:5]:
+                file_path = default_storage.save(f"product_images/{image.name}", ContentFile(image.read()))
+                image_urls.append(f"{settings.MEDIA_URL}{file_path}")
+
+            # Save images in JSONField
+            product.product_images = image_urls
+            product.save()
 
             serializer = ProductListSerializer(product)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
 
 # class ProduclistView(APIView):
 #     permission_classes = [AllowAny]
@@ -232,7 +304,6 @@ class Product_updateanddelete(APIView):
         serializer = ProductListSerializer(product)
         return Response(serializer.data,status=200)
 
-
     def patch(self, request, id):
         try:
             item = Product_list.objects.get(id=id)
@@ -241,45 +312,78 @@ class Product_updateanddelete(APIView):
 
         data = request.data.copy()  # Copy request data
 
-        # Handle updating a specific index in prize_range
-        index = data.pop("index", None)  # Get index if provided
-        new_value = data.pop("new_value", None)  # Get new value if provided
-
+        # 🛠️ Handle updating a specific index in prize_range
+        index = data.pop("index", None)
+        new_value = data.pop("new_value", None)
 
         if index is not None and new_value is not None:
+            try:
+                index = int(index)  # Convert index to integer
+            except (ValueError, TypeError):
+                return Response({"error": "index must be an integer"}, status=400)
+
             if not isinstance(item.prize_range, list):
                 return Response({"error": "prize_range is not a list"}, status=400)
 
             if index < 0 or index >= len(item.prize_range):
                 return Response({"error": "Index out of range"}, status=400)
 
-            # Update specific index in prize_range
             item.prize_range[index] = new_value
-            data["prize_range"] = item.prize_range  # Ensure this field gets updated
+            data["prize_range"] = item.prize_range
+
         
-        item_no = data.pop("item_no", None)  # Get index if provided
-        new_image = data.pop("new_image", None)  # Get new value if provided
+        item_no = data.pop("item_no", None)
+        new_image = request.FILES.get("new_image")  
+        print("the item no:",item_no,new_image)
+
+
+        # Ensure item_no is properly extracted
+        if isinstance(item_no, list) and item_no:
+            item_no = item_no[0]  # Extract first value
+
+        try:
+            item_no = int(item_no)  # Convert to integer
+        except (ValueError, TypeError):
+            return Response({"error": "item_no must be an integer"}, status=400)
 
         if item_no is not None and new_image is not None:
+            try:
+                item_no = int(item_no)  # Convert index to integer
+            except (ValueError, TypeError):
+                return Response({"error": "item_no must be an integer"}, status=400)
+            
             if not isinstance(item.product_images, list):
                 return Response({"error": "product_images is not a list"}, status=400)
 
             if item_no < 0 or item_no >= len(item.product_images):
                 return Response({"error": "item_no out of range"}, status=400)
+
+            #  Save new image to media storage
+
+            # Get the full server URL dynamically
+            # Get the full server URL dynamically
+            domain = settings.SITE_URL if hasattr(settings, "SITE_URL") else f"http://{request.get_host()}"
+            file_path = default_storage.save(f"{new_image.name}", ContentFile(new_image.read()))
+            # Construct the full URL
+            full_url = f"{domain}{settings.MEDIA_URL}{file_path}"
+
+            # Construct the full URL
             
-                # Update specific index in prize_range
-            item.product_images[item_no] = new_image
-            data["product_images"] = item.product_images  # Ensure this field gets updated
+            # file_path = default_storage.save(f"product_images/{new_image.name}", ContentFile(new_image.read()))
+            # full_url = f"{domain}{settings.MEDIA_URL}{file_path}"
 
-
-        # Serialize with partial=True to update only provided fields
+            #  Replace image at index
+            item.product_images[item_no] = full_url
+            data["product_images"] = json.dumps(item.product_images)
         serializer = ProductListSerializer(item, data=data, partial=True)
 
         if serializer.is_valid():
             serializer.save()
             return Response({"message": "Product updated successfully", "data": serializer.data}, status=200)
+
         return Response(serializer.errors, status=400)
-    
+
+
     def delete(self,requestk,id):
         try:
             item = Product_list.objects.get(id=id)
@@ -295,7 +399,7 @@ class Product_updateanddelete(APIView):
             return Response({"error": "Product not found"}, status=404)
         add_img = request.data.get('product_images')
         print("the extra image",add_img)
-
+        
         item.add_extra_img(add_img)
         serializer = ProductListSerializer(item)
         print("the append data is",item)
@@ -562,11 +666,28 @@ class Adding_cart(APIView):
                     print("the sum_total",sum_total)
 
             if not cart_data:
-                return Response({"error": "No products found in cart"}, status=404)
+                return Response({"error": "No products found in cart"}, status=400)
 
             return Response(cart_data)  
 
-        return Response({"error": "No session found"}, status=403)
+
+
+
+class Delete_all_cart(APIView):
+    def post(self,request):
+        user = request.data.get('username')
+        cart_items = Cart_items.objects.filter(user_id = user)
+        if cart_items is not None:
+            cart_items.delete()
+            return Response({"message": "Cart items deleted succesfully"}, status=200)
+        else:
+            return Response({"error": "No items found in cart"}, status=400)
+    
+
+
+
+
+
 
 
 class order_products(APIView):
@@ -598,59 +719,56 @@ class order_products(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def get(self, request):
-            if "author" in request.session:
-                user = request.session["author"]
-                print("The session holder:", user)
+            user = request.data["username"]
+            print("The username holder:", user)
 
-                if user is not None:
-                    order_list = []
-                    customer = Customer.objects.filter(username=user).first()
-                    check_order = Order_products.objects.filter(user_id=user).first()
-                    print("The order item with user:", check_order)
+            if user is not None:
+                order_list = []
+                customer = Customer.objects.filter(username=user).first()
+                check_order = Order_products.objects.filter(user_id=user).first()
+                print("The order item with user:", check_order)
 
-                    if check_order:
-                        for products in check_order.product_items:
-                            product_id = products.get("product_id")
-                            print("The product ID is:", product_id)
+                if check_order:
+                    for products in check_order.product_items:
+                        product_id = products.get("product_id")
+                        print("The product ID is:", product_id)
 
-                            # Fetch product from Product_list
-                            product_list = Product_list.objects.filter(id=product_id).first()
-                            if not product_list:
-                                print(f"Skipping product with ID {product_id} (Not Found)")
-                                continue  
+                        # Fetch product from Product_list
+                        product_list = Product_list.objects.filter(id=product_id).first()
+                        if not product_list:
+                            print(f"Skipping product with ID {product_id} (Not Found)")
+                            continue  
 
-                            order_list.append(
-                                {
-                                    "user_id": user,
-                                    "temp_address": products.get("total_amount"),
-                                    "permanent_address": customer.permanent_adress,
-                                    "product_name": product_list.product_name,
-                                    "product_images": product_list.product_images
-                                    if product_list.product_images
-                                    else None,
-                                    "product_category": product_list.product_category,
-                                    "product_stock": product_list.product_stock,
-                                    "order_status": products.get("order_status"),
-                                    "total_count": products.get("total_count"),
-                                    "total_amount": products.get("total_amount"),
-                                }
-                            )
+                        order_list.append(
+                            {
+                                "user_id": user,
+                                "temp_address": products.get("temp_address"),
+                                "permanent_address": customer.permanent_adress,
+                                "product_name": product_list.product_name,
+                                "product_images": product_list.product_images
+                                if product_list.product_images
+                                else None,
+                                "product_category": product_list.product_category,
+                                "product_stock": product_list.product_stock,
+                                "order_status": products.get("order_status"),
+                                "total_count": products.get("total_count"),
+                                "total_amount": products.get("total_amount"),
+                            }
+                        )
 
-                        if not order_list:
-                            return Response(
-                                {"error": "No products found in order_list"}, status=404
-                            )
+                    if not order_list:
+                        return Response(
+                            {"error": "No products found in order_list"}, status=404
+                        )
 
-                        return Response(order_list)
-
-                    else:
-                        return Response({"error": "No product found for this username"})
+                    return Response(order_list)
 
                 else:
-                    return Response({"error": "No User found"})
+                    return Response({"error": "No product found for this username"})
 
             else:
-                return Response({"error": "No Session found"})
+                return Response({"error": "No User found"})
+
 
 class UpdateOrderStatus(APIView):
     permission_classes = [AllowAny]
@@ -692,34 +810,53 @@ class UpdateOrderStatus(APIView):
 
         return Response({"message": "No updates were made"}, status=status.HTTP_400_BAD_REQUEST)
 
-
-
-class Cancel_order(APIView):
+class CancelOrder(APIView):
     permission_classes = [AllowAny]
 
-    def post(self,request):
-        if "author" in request.session:
-            username = request.session.get('author')
-            order_id = request.data.get('order_id')
-            order_list = Order_products.objects.filter(user_id=username).first()
-            print("the order_list",order_list)
-            for items in order_list.product_items:
-                order_id_product = items.get('order_id')
-                print("the order_id_product",order_id_product)
-                order_status = items.get('order_status')
-                print("the order_status",order_status)
-                if order_id_product == order_id and order_status =='null':
-                    items.pop()
-                # else:
-                #     return Response({"message":"the item not be cancelled"})
-            return Response({"message":"the item cancelled "})
-        else:
-            return Response({"message":"no session found "})
+    def post(self, request):
+        username = request.data.get('username')
+        order_id = request.data.get('order_id')
 
+        # Ensure order_id is a string for consistent comparison
+        order_id = str(order_id).strip()
 
+        # Fetch user's order
+        order_list = Order_products.objects.filter(user_id=username).first()
 
+        if not order_list:
+            return Response({"message": "Order not found"}, status=404)
 
+        if not order_list.product_items:
+            return Response({"message": "No products in order"}, status=404)
 
+        print("Product Items before cancellation:", order_list.product_items)
+
+        # Check for a matching order
+        updated_items = []
+        order_removed = False  # Flag to check if any order was removed
+
+        for item in order_list.product_items:
+            print("Checking:", item)  # Debugging
+
+            # Convert order_id to string to ensure comparison works
+            item_order_id = str(item.get("order_id")).strip()
+            item_status = str(item.get("order_status")).strip().lower()
+
+            if item_order_id == order_id and item_status == "null":
+                print("Cancelling Order:", item)
+                order_removed = True
+                continue  # Skip adding this item (remove it)
+
+            updated_items.append(item)
+
+        if not order_removed:
+            return Response({"message": "Order cannot be cancelled or not found"}, status=400)
+
+        # Update the database
+        order_list.product_items = updated_items
+        order_list.save()
+
+        return Response({"message": "Order cancelled successfully"}, status=200)
 
 
 
@@ -877,3 +1014,7 @@ class SearchAllCustomer(APIView):
         ]
 
         return Response({"results": product_data}, status=200)
+    
+
+
+# class Stock_update(APIView):

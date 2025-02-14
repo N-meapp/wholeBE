@@ -193,3 +193,4 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
     "x-csrftoken",
 ]
+# SITE_URL = "http://127.0.0.1:8000"

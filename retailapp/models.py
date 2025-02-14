@@ -1,6 +1,8 @@
 from django.db import models
 from django.core.exceptions import ValidationError
-
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import UploadedFile
 
 # Create your models here.
 
@@ -30,6 +32,10 @@ class Customer(models.Model):
     def __str__(self):
         return self.username
 
+class Administrator(models.Model):
+    username = models.CharField(max_length=15)
+    password = models.CharField(max_length=15)
+    
 
 class Login(models.Model):
     username = models.CharField(max_length=30)
@@ -51,8 +57,8 @@ class Product_list(models.Model):
     product_name = models.CharField(max_length=20)
     product_images = models.JSONField(default=list) # Stores array of strings (URLs or image paths)
     product_description = models.CharField(max_length=20)
-    product_discount = models.CharField(max_length=20)
-    product_offer = models.CharField(max_length=20)
+    product_discount = models.CharField(max_length=20,blank=True)
+    product_offer = models.CharField(max_length=20,blank=True)
     product_category = models.CharField(max_length=20)
     prize_range = models.JSONField(default=list)
     product_stock = models.CharField(max_length=250)
@@ -70,21 +76,23 @@ class Product_list(models.Model):
             raise ValidationError("Only 3 entries are allowed in prize_range.")
         self.save()
 
-    def add_image(self, image):
-        if not isinstance(image, str):
-            raise ValidationError("image must be a str.")
-        if not isinstance(self.product_images, list):
-            self.product_images = []
+    # def add_image(self, image):
+    #     if not isinstance(image, UploadedFile):
+    #         raise ValidationError("image must be a file.")
+    #     if not isinstance(self.product_images, list):
+    #         self.product_images = []
 
-        self.product_images.append(image)
+    #     # Save the file and store its path  
+    #     file_path = default_storage.save(f"product_images/{image.name}", ContentFile(image.read()))
+    #     self.product_images.append(file_path)
 
-        if len(self.product_images) > 5:  # Limit to 3 entries
-            raise ValidationError("Only 5 entries are allowed in prize_range.")
-        self.save()
+    #     if len(self.product_images) > 5:  # Limit to 5 images
+    #         raise ValidationError("Only 5 images are allowed in product_images.")
+    #     self.save()
 
     def add_extra_img(self, add_img):
-        if not isinstance(add_img, str):
-            raise ValidationError("Search term must be a string.")
+        if not isinstance(add_img, UploadedFile):
+            raise ValidationError("Search term must be a file.")
         # Ensure search_history is a list
         if add_img not in self.product_images:  # Check for duplicates
             self.product_images.append(add_img)

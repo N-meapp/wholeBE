@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/Category_filter/', Category_filter.as_view(), name='Category_filter'),
     path('api/Product_updateanddelete/<int:id>/', Product_updateanddelete.as_view(), name='Product_updateanddelete'),
     path('api/Adding_cart/', Adding_cart.as_view(), name='Adding_cart'),
+    path('api/Delete_all_cart/', Delete_all_cart.as_view(), name='Delete_all_cart'),
     path('api/order_products/', order_products.as_view(), name='order_products'),
     path('api/Update_order_status/', UpdateOrderStatus.as_view(), name='Update_order_status'),
     path('api/Total_counts_dashboard/', Total_counts_dashboard.as_view(), name='Total_counts_dashboard'),
@@ -25,8 +26,7 @@ urlpatterns = [
     path('api/Total_orders_list/', Total_orders_list.as_view(), name='Total_orders_list'),
     path('api/Search_all/', Search_all.as_view(), name='Search_all'),
     path('api/SearchAllCustomer/', SearchAllCustomer.as_view(), name='SearchAllCustomer'),
-    path('api/Cancel_order/', Cancel_order.as_view(), name='Cancel_order'),
-
+    path('api/CancelOrder/', CancelOrder.as_view(), name='CancelOrder'),
 
 
 ]
