@@ -9,7 +9,7 @@ from django.core.files.uploadedfile import UploadedFile
 class Customer(models.Model):
     username = models.CharField(max_length=30)
     password = models.CharField(max_length=80)
-    profile_image = models.ImageField(upload_to='media/',blank=True)
+    profile_image = models.ImageField(upload_to='media/',default="media/profile.jpg")
     discount_individual = models.CharField(max_length=20, blank=True)
     search_history = models.JSONField(default=list, blank=True)
     permanent_adress = models.TextField(blank=True)
@@ -141,3 +141,7 @@ class Order_products(models.Model):
         return self.user_id
 
 
+class Enquiry(models.Model):
+    user_id = models.CharField(max_length=20)
+    product_id = models.CharField(max_length=10)
+    message = models.TextField()

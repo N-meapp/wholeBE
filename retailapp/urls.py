@@ -27,6 +27,8 @@ urlpatterns = [
     path('api/Search_all/', Search_all.as_view(), name='Search_all'),
     path('api/SearchAllCustomer/', SearchAllCustomer.as_view(), name='SearchAllCustomer'),
     path('api/CancelOrder/', CancelOrder.as_view(), name='CancelOrder'),
+    path('api/Enquiry_send/', Enquiry_send.as_view(), name='Enquiry_send'),
+    
 
 
 ]

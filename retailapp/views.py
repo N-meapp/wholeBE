@@ -399,7 +399,7 @@ class Product_updateanddelete(APIView):
             return Response({"error": "Product not found"}, status=404)
         add_img = request.data.get('product_images')
         print("the extra image",add_img)
-        
+
         item.add_extra_img(add_img)
         serializer = ProductListSerializer(item)
         print("the append data is",item)
@@ -553,122 +553,124 @@ class Adding_cart(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        if "author" in request.session:
-            user = request.session['author']
-            print("The available user is:", user)
+        user_id = request.data.get('user_id')
+        products = request.data.get('products')
 
-            user_id = request.data.get('user_id')
-            products = request.data.get('products')
+        print("Received user_id:", user_id)
+        print("Received products:", products)
 
-            print("Received user_id:", user_id)
-            print("Received products:", products)
+        # Validate data
+        if user_id is None or not isinstance(products, list):
+            return Response({"error": "Invalid data format (user_id missing or products is not a list)"}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Validate data
-            if user_id is None or not isinstance(products, list):
-                return Response({"error": "Invalid data format (user_id missing or products is not a list)"}, status=400)
+        # Retrieve the user's cart
+        cart = Cart_items.objects.filter(user_id=user_id).first()
 
-            # Check if cart already exists for the user
-            cart = Cart_items.objects.filter(user_id=user_id).first()
+        if cart:
+            # Update the existing cart
+            existing_products = {item["id"]: item for item in cart.products}  # Create a dictionary for quick lookup
 
-            if cart:
-                # Update existing cart
-                cart.cart_add(products)
-                serializer = CartSerializer(cart)
-            else:
-                # Create new cart entry
-                cart = Cart_items.objects.create(user_id=user_id, products=products)
-                serializer = CartSerializer(cart)
+            for new_product in products:
+                product_id = new_product.get("id")
 
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+                if product_id in existing_products:
+                    # If product exists, update the count
+                    existing_products[product_id]["count"] += new_product.get("count", 1)
+                else:
+                    # If product is new, add it to the cart
+                    existing_products[product_id] = new_product
 
+            # Update cart products
+            cart.products = list(existing_products.values())
+            cart.save()
         else:
-            return Response({"error": "No session found"}, status=400)
+            # If no cart exists, create a new one
+            cart = Cart_items.objects.create(user_id=user_id, products=products)
+
+        # Serialize and return response
+        serializer = CartSerializer(cart)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
                 
 
     def get(self, request):
-        if "author" in request.session:
+        user = request.data.get('user_id')
+        print('Current author is:', user)
 
-            a="40"
-            print(type(a))
+        user_cart_items = Cart_items.objects.filter(user_id=user)
+        print('User cart items:', user_cart_items)
 
-            user = request.session['author']
-            print('Current author is:', user)
+        if not user_cart_items.exists():
+            return Response({"error": "No matching cart items found"}, status=404)
 
-            user_cart_items = Cart_items.objects.filter(user_id=user)
-            print('User cart items:', user_cart_items)
+        cart_data = []
 
-            if not user_cart_items.exists():
-                return Response({"error": "No matching cart items found"}, status=404)
+        for item in user_cart_items:
+            print("Processing Cart Item:", item)
+            print("Item Products Data:", item.products)
 
-            cart_data = []
+            for product in item.products:  
+                p_id = product.get("id")
+                product_count = int(product.get('count', 0))  
+                print("Extracted Product ID:", p_id, "Product Count:", product_count)
 
-            for item in user_cart_items:
-                print("Processing Cart Item:", item)
-                print("Item Products Data:", item.products)
+                if not p_id:
+                    continue  
 
-                for product in item.products:  
-                    p_id = product.get("id")
-                    product_count = int(product.get('count', 0))  
-                    print("Extracted Product ID:", p_id, "Product Count:", product_count)
+                # Fetch product details
+                product_obj = Product_list.objects.filter(id=p_id).first()
+                print("Fetched Product Object:", product_obj)
 
-                    if not p_id:
-                        continue  
+                # Get customer details and individual discount
+                invidual = Customer.objects.filter(username=user).first()
+                individual_discount = float(invidual.discount_individual) / 100 if invidual and invidual.discount_individual else 0
 
-                    # Fetch product details
-                    product_obj = Product_list.objects.filter(id=p_id).first()
-                    print("Fetched Product Object:", product_obj)
+                print("Individual Discount:", individual_discount)
 
-                    # Get customer details and individual discount
-                    invidual = Customer.objects.filter(username=user).first()
-                    individual_discount = float(invidual.discount_individual) / 100 if invidual and invidual.discount_individual else 0
+                # Get product discount
+                product_discount = float(product_obj.product_discount) / 100 if product_obj and product_obj.product_discount else 0
+                print("Product Discount:", product_discount)
 
-                    print("Individual Discount:", individual_discount)
+                # Calculate total amount
+                total_amount = 0
+                if product_obj and product_obj.prize_range:
+                    for prize in product_obj.prize_range:
+                        start = int(prize.get('from', 0) or 0)
+                        end = int(prize.get('to', 0) or 0)
+                        price = float(prize.get('price', 0) or 0)
 
-                    # Get product discount
-                    product_discount = float(product_obj.product_discount) / 100 if product_obj and product_obj.product_discount else 0
-                    print("Product Discount:", product_discount)
+                        print(f"Checking range: from {start} to {end}, price: {price}")
 
-                    # Calculate total amount
-                    total_amount = 0
-                    if product_obj and product_obj.prize_range:
-                        for prize in product_obj.prize_range:
-                            start = int(prize.get('from', 0) or 0)
-                            end = int(prize.get('to', 0) or 0)
-                            price = float(prize.get('price', 0) or 0)
+                        if start <= product_count <= end:
+                            discount_to_apply = individual_discount if individual_discount else product_discount
+                            discounted_price = price * (1 - discount_to_apply)
+                            total_amount = product_count * discounted_price
+                            print("Total Amount for Product:", total_amount)
+                            break  
 
-                            print(f"Checking range: from {start} to {end}, price: {price}")
+                # Append product details to cart_data
+                if product_obj:
+                    cart_data.append({
+                        "user_id": item.user_id,
+                        "total_count": product_count,
+                        "product_name": product_obj.product_name,
+                        "product_images": product_obj.product_images if product_obj.product_images else None,
+                        "product_description": product_obj.product_description,
+                        "product_discount": product_obj.product_discount,
+                        "individual_discount": individual_discount,
+                        "product_offer": product_obj.product_offer,
+                        "product_category": product_obj.product_category,
+                        "prize_range": product_obj.prize_range,
+                        "product_stock": product_obj.product_stock,
+                        "total_amount": total_amount,
+                    })
 
-                            if start <= product_count <= end:
-                                discount_to_apply = individual_discount if individual_discount else product_discount
-                                discounted_price = price * (1 - discount_to_apply)
-                                total_amount = product_count * discounted_price
-                                print("Total Amount for Product:", total_amount)
-                                break  
+                sum_total = sum(item['total_amount'] for item in cart_data)
+                print("the sum_total",sum_total)
 
-                    # Append product details to cart_data
-                    if product_obj:
-                        cart_data.append({
-                            "user_id": item.user_id,
-                            "total_count": product_count,
-                            "product_name": product_obj.product_name,
-                            "product_images": product_obj.product_images if product_obj.product_images else None,
-                            "product_description": product_obj.product_description,
-                            "product_discount": product_obj.product_discount,
-                            "individual_discount": individual_discount,
-                            "product_offer": product_obj.product_offer,
-                            "product_category": product_obj.product_category,
-                            "prize_range": product_obj.prize_range,
-                            "product_stock": product_obj.product_stock,
-                            "total_amount": total_amount,
-                        })
+        if not cart_data:
+            return Response({"error": "No products found in cart"}, status=400)
 
-                    sum_total = sum(item['total_amount'] for item in cart_data)
-                    print("the sum_total",sum_total)
-
-            if not cart_data:
-                return Response({"error": "No products found in cart"}, status=400)
-
-            return Response(cart_data)  
+        return Response(cart_data)  
 
 
 
@@ -770,9 +772,17 @@ class order_products(APIView):
                 return Response({"error": "No User found"})
 
 
+
+# class Count_order_update(APIView):
+#     def patch(sel,request,id):
+
+
+
+
+
+
 class UpdateOrderStatus(APIView):
     permission_classes = [AllowAny]
-
     def patch(self, request):
         order_reject = request.data.get("rejected_product", [])  # List of rejected product IDs
         user_id = request.data.get("user_id")
@@ -908,6 +918,7 @@ class Total_orders_list(APIView):
     permission_classes = [AllowAny]
 
     def get(self,request):
+        
         order_list = Order_products.objects.all()
         if not order_list:
             return Response({"error": "No order_list found"})
@@ -1014,7 +1025,23 @@ class SearchAllCustomer(APIView):
         ]
 
         return Response({"results": product_data}, status=200)
-    
 
+class Enquiry_send(APIView):
+    permission_classes = [AllowAny]
 
-# class Stock_update(APIView):
+    def post(self,request):
+        serializer = EnquirySerializer(data = request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data,status=200)
+        else:
+            return Response({"message":"the enquiry form is not valid check field names or method"},status=200)
+        
+    def get(self,request):
+        enquiry = Enquiry.objects.all()
+        if enquiry:
+            serializer = EnquirySerializer(enquiry,many=True)
+            return Response(serializer.data,status=200)
+        else:
+            return Response({"error": "Enquiry not found"},status=400)
+
