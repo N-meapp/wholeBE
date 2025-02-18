@@ -572,19 +572,23 @@ class Adding_cart(APIView):
 
             for new_product in products:
                 product_id = new_product.get("id")
+                new_count = int(new_product.get("count", 1))  # Ensure new count is an integer
 
                 if product_id in existing_products:
-                    # If product exists, update the count
-                    existing_products[product_id]["count"] += new_product.get("count", 1)
+                    # Convert existing count to integer before addition
+                    existing_products[product_id]["count"] = int(existing_products[product_id].get("count", 1)) + new_count
                 else:
-                    # If product is new, add it to the cart
+                    # Ensure count is stored as an integer
+                    new_product["count"] = new_count
                     existing_products[product_id] = new_product
 
             # Update cart products
             cart.products = list(existing_products.values())
             cart.save()
         else:
-            # If no cart exists, create a new one
+            # If no cart exists, create a new one and ensure count is stored as an integer
+            for product in products:
+                product["count"] = int(product.get("count", 1))
             cart = Cart_items.objects.create(user_id=user_id, products=products)
 
         # Serialize and return response
@@ -651,6 +655,7 @@ class Adding_cart(APIView):
                 if product_obj:
                     cart_data.append({
                         "user_id": item.user_id,
+                        "username":invidual.username,
                         "total_count": product_count,
                         "product_name": product_obj.product_name,
                         "product_images": product_obj.product_images if product_obj.product_images else None,
@@ -673,6 +678,49 @@ class Adding_cart(APIView):
         return Response(cart_data)  
 
 
+class Count_order_update(APIView):
+    permission_classes = [AllowAny]
+
+    def patch(self, request):
+        count = request.data.get('count')
+        product_id = request.data.get('product_id')
+        user_id = request.data.get("user_id")
+
+        print("Received request data:", count, product_id, user_id)
+
+        # Validate request data
+        if None in (count, product_id, user_id):
+            return Response({"error": "Missing count, product_id, or user_id"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fetch the cart for the given user
+        cart = Cart_items.objects.filter(user_id=user_id).first()
+
+        if not cart:
+            return Response({"error": "Cart not found for the user"}, status=status.HTTP_404_NOT_FOUND)
+
+        print("Cart Items before update:", cart.products)
+
+        # Update the count of the product in the cart
+        updated = False
+        for item in cart.products:
+            if str(item.get('id')) == str(product_id):  # Ensure ID comparison works
+                item['count'] = int(count)  # Update the count
+                updated = True
+                break
+
+        if not updated:
+            return Response({"error": "Product not found in cart"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Save updated cart
+        cart.save()
+
+        print("Cart Items after update:", cart.products)
+
+        # Serialize and return updated cart
+        serializer = CartSerializer(cart)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 
 
 class Delete_all_cart(APIView):
@@ -685,10 +733,6 @@ class Delete_all_cart(APIView):
         else:
             return Response({"error": "No items found in cart"}, status=400)
     
-
-
-
-
 
 
 
@@ -744,6 +788,7 @@ class order_products(APIView):
                         order_list.append(
                             {
                                 "user_id": user,
+                                "username":customer.username,
                                 "temp_address": products.get("temp_address"),
                                 "permanent_address": customer.permanent_adress,
                                 "product_name": product_list.product_name,
@@ -770,13 +815,6 @@ class order_products(APIView):
 
             else:
                 return Response({"error": "No User found"})
-
-
-
-# class Count_order_update(APIView):
-#     def patch(sel,request,id):
-
-
 
 
 
@@ -1039,9 +1077,21 @@ class Enquiry_send(APIView):
         
     def get(self,request):
         enquiry = Enquiry.objects.all()
+        enquiry_list=[]
         if enquiry:
-            serializer = EnquirySerializer(enquiry,many=True)
-            return Response(serializer.data,status=200)
+            for items in enquiry:
+                product_id = items.product_id
+                print("the product id is:",product_id) 
+                product_list = Product_list.objects.filter(id=product_id).first()
+                print('the product list:',product_list)
+                enquiry_list.append({
+                    "username":items.user_id,
+                    "product_name":product_list.product_name,
+                    "product_description":product_list.product_description,
+                    "message":items.message
+                }
+                )
+            return Response(enquiry_list,status=200)
         else:
             return Response({"error": "Enquiry not found"},status=400)
 
