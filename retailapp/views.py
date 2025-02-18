@@ -248,54 +248,56 @@ class ProductListPost(APIView):
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-# class ProduclistView(APIView):
-#     permission_classes = [AllowAny]
 
-#     def get(self,request):
-#         if "author" in request.session:
-#             user = request.session.get('author')
-#             print('author name is:',user)
-#             username = Customer.objects.get(username=user)
-#             print('username name is:',username)
-#             response_data = []
-#             try:
-#                 individual_discount = int(username.discount_individual)
-#                 print('individual_discount  is:',individual_discount)
-#             except ValueError:
-#                  individual_discount = 0
-#             products = Product_list.objects.all()
-#             for product in products:
-#                 product_prize = product.prize_range
-#                 print("product_prize is",product_prize)
-#                 discounted_prices = []
-#                 for prize in product_prize:
-#                     if 'price' in prize:
-#                         try:
-#                             actual_prize = int(prize['price'])
-#                             print("actual_prize is",actual_prize)
 
-#                             final_discount = actual_prize - (actual_prize * individual_discount / 100)
-#                             print("Final Price after Discount:", final_discount)
 
-#                             discounted_prices.append({
-#                                     "actual_price": actual_prize,
-#                                     "final_discount": final_discount
-#                                 })
-#                             print("the output array is",discounted_prices)
+class ProduclistView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+            response_data = []
+            products = Product_list.objects.all()
+
+            for product in products:
+                product_prize = product.prize_range
+                print("product_prize is", product_prize)
+
+                try:
+                    discount = int(product.product_discount)
+                    print('product_discount is:', discount)
+                except (ValueError, TypeError):
+                    discount = 0  # Default discount is 0 if not valid
+
+                discounted_prices = []
+                for prize in product_prize:
+                    if 'price' in prize:
+                        try:
+                            actual_prize = int(prize['price'])
+                            print("actual_prize is", actual_prize)
+
+                            final_discount = actual_prize - (actual_prize * discount / 100)
+                            print("Final Price after Discount:", final_discount)
+
+                            discounted_prices.append({
+                                "actual_price": actual_prize,
+                                "final_discount": final_discount
+                            })
+                            print("The output array is", discounted_prices)
                             
-#                         except ValueError:
-#                             continue 
-                        
-#                 serializer = ProductListSerializer(product)
-#                 product_data = serializer.data
-#                 product_data['discounted_prices'] = discounted_prices  
+                        except (ValueError, TypeError):
+                            continue  # Skip invalid prices
 
-#                 response_data.append(product_data)
+                # Serialize the product data
+                serializer = ProductListSerializer(product)
+                product_data = serializer.data
+                product_data['discounted_prices'] = discounted_prices  # Add discount data
 
-#         return Response(response_data, status=status.HTTP_200_OK)
+                response_data.append(product_data)
+
+            # Ensure a valid Response is always returned
+            return Response(response_data, status=status.HTTP_200_OK)
 
 
- 
 class Product_updateanddelete(APIView):
     permission_classes = [AllowAny]
 
@@ -765,56 +767,56 @@ class order_products(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def get(self, request):
-            user = request.data["username"]
-            print("The username holder:", user)
+        user = request.data.get('username')
+        print("The username holder:", user)
 
-            if user is not None:
-                order_list = []
-                customer = Customer.objects.filter(username=user).first()
-                check_order = Order_products.objects.filter(user_id=user).first()
-                print("The order item with user:", check_order)
+        if user is not None:
+            order_list = []
+            customer = Customer.objects.filter(username=user).first()
+            check_order = Order_products.objects.filter(user_id=user).first()
+            print("The order item with user:", check_order)
 
-                if check_order:
-                    for products in check_order.product_items:
-                        product_id = products.get("product_id")
-                        print("The product ID is:", product_id)
+            if check_order:
+                for products in check_order.product_items:
+                    product_id = products.get("product_id")
+                    print("The product ID is:", product_id)
 
-                        # Fetch product from Product_list
-                        product_list = Product_list.objects.filter(id=product_id).first()
-                        if not product_list:
-                            print(f"Skipping product with ID {product_id} (Not Found)")
-                            continue  
+                    # Fetch product from Product_list
+                    product_list = Product_list.objects.filter(id=product_id).first()
+                    if not product_list:
+                        print(f"Skipping product with ID {product_id} (Not Found)")
+                        continue  
 
-                        order_list.append(
-                            {
-                                "user_id": user,
-                                "username":customer.username,
-                                "temp_address": products.get("temp_address"),
-                                "permanent_address": customer.permanent_adress,
-                                "product_name": product_list.product_name,
-                                "product_images": product_list.product_images
-                                if product_list.product_images
-                                else None,
-                                "product_category": product_list.product_category,
-                                "product_stock": product_list.product_stock,
-                                "order_status": products.get("order_status"),
-                                "total_count": products.get("total_count"),
-                                "total_amount": products.get("total_amount"),
-                            }
-                        )
+                    order_list.append(
+                        {
+                            "user_id": user,
+                            "username":customer.username,
+                            "temp_address": products.get("temp_address"),
+                            "permanent_address": customer.permanent_adress,
+                            "product_name": product_list.product_name,
+                            "product_images": product_list.product_images
+                            if product_list.product_images
+                            else None,
+                            "product_category": product_list.product_category,
+                            "product_stock": product_list.product_stock,
+                            "order_status": products.get("order_status"),
+                            "total_count": products.get("total_count"),
+                            "total_amount": products.get("total_amount"),
+                        }
+                    )
 
-                    if not order_list:
-                        return Response(
-                            {"error": "No products found in order_list"}, status=404
-                        )
+                if not order_list:
+                    return Response(
+                        {"error": "No products found in order_list"}, status=404
+                    )
 
-                    return Response(order_list)
-
-                else:
-                    return Response({"error": "No product found for this username"})
+                return Response(order_list)
 
             else:
-                return Response({"error": "No User found"})
+                return Response({"error": "No product found for this username"})
+
+        else:
+            return Response({"error": "No User found"})
 
 
 
@@ -909,6 +911,40 @@ class CancelOrder(APIView):
 
 
 
+class Stock_auto_update(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        order_list = Order_products.objects.all()
+        products = Product_list.objects.all()
+        updated_products = []  # Store updated products
+
+        for product in products:
+            product_id = product.id
+            stock = int(product.product_stock)
+            print("Product ID & Stock:", product_id, stock)
+
+            for orders in order_list:
+                for items in orders.product_items:
+                    id_product = items.get('product_id')
+                    order_status = items.get('order_status')
+
+                    if str(id_product) == str(product_id) and order_status == "accepted":
+                        count = int(items.get('total_count'))
+                        print("Order ID:", id_product, "Count:", count, "Order Status:", order_status)
+
+                        # Reduce stock and save
+                        product.product_stock = max(stock - count, 0)  # Prevent negative stock
+                        product.save()
+                        updated_products.append(product)
+
+        # Serialize all updated products
+        serializer = ProductListSerializer(updated_products, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+
 class Total_counts_dashboard(APIView):
     permission_classes = [AllowAny]
 
@@ -965,6 +1001,7 @@ class Total_orders_list(APIView):
             user_id = orders.user_id
             for products in orders.product_items:
                 product_id = products.get('product_id')
+                order_id = products.get('order_id')
                 product_list = Product_list.objects.filter(id=product_id).first()
                 if not product_list:
                     print(f"Skipping product with ID {product_id} (Not Found)")
@@ -972,6 +1009,7 @@ class Total_orders_list(APIView):
                 order_products.append(
                     {
                         'user_id':user_id,
+                        'order_id':order_id,
                         # "temp_address": products.get("total_amount"),
                         "permanent_address": products.get('permanent_address'),
                         "product_name": product_list.product_name,
