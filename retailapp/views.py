@@ -1087,6 +1087,7 @@ class Enquiry_send(APIView):
                 enquiry_list.append({
                     "username":items.user_id,
                     "product_name":product_list.product_name,
+                    "product_image":product_list.product_images if product_list.product_images else None, 
                     "product_description":product_list.product_description,
                     "message":items.message
                 }
