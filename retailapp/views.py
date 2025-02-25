@@ -24,19 +24,34 @@ class Register_custumer(APIView):
         serializer = Register_custumerSerializer(custumers,many =True)
         return Response(serializer.data,status=status.HTTP_200_OK)
     
-    def post(self,request):
-        serializer = Register_custumerSerializer(data = request.data)
+    def post(self, request):
+        serializer = Register_custumerSerializer(data=request.data)
+        address = request.data.get('address')
+
+        # Validate address format
+        if address is None or not isinstance(address, list):
+            return Response({'message': 'adress must be a list of dictionaries'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Ensure each address is a dictionary
+        if not all(isinstance(item, dict) for item in address):
+            return Response({'message': 'Each address must be a dictionary'}, status=status.HTTP_400_BAD_REQUEST)
+
         if serializer.is_valid():
             username = serializer.validated_data.get('username')
-            print("username from request: ",username)
-            check = Customer.objects.filter(username=username)
-            if check:
-                content = {'message': 'username already taken'}
-                return Response(content)
-            else:
-                serializer.save()
-                return Response(serializer.data, status=201)
-        return Response(serializer.errors, status=400)
+            print("Username from request: ", username)
+
+            # Check if username already exists
+            if Customer.objects.filter(username=username).exists():
+                return Response({'message': 'Username already taken'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Save customer with address
+            customer = serializer.save()
+            customer.address = address  # Store address as a list of dictionaries
+            customer.save()
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 class Login_view(APIView):
     permission_classes = [AllowAny]
@@ -562,7 +577,7 @@ class Adding_cart(APIView):
         print("Received products:", products)
 
         # Validate data
-        if user_id is None or not isinstance(products, list):
+        if user_id is None:
             return Response({"error": "Invalid data format (user_id missing or products is not a list)"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Retrieve the user's cart
@@ -647,7 +662,7 @@ class Adding_cart(APIView):
                         print(f"Checking range: from {start} to {end}, price: {price}")
 
                         if start <= product_count <= end:
-                            discount_to_apply = individual_discount if individual_discount else product_discount
+                            discount_to_apply = product_discount if product_discount else 0
                             discounted_price = price * (1 - discount_to_apply)
                             total_amount = product_count * discounted_price
                             print("Total Amount for Product:", total_amount)
@@ -671,13 +686,28 @@ class Adding_cart(APIView):
                         "total_amount": total_amount,
                     })
 
-                sum_total = sum(item['total_amount'] for item in cart_data)
-                print("the sum_total",sum_total)
+                    sum_total = sum(item['total_amount'] for item in cart_data)
+                    print("Total before discount:", sum_total)
+
+                    discount_to_user = individual_discount if individual_discount else 0
+                    discount_amount = sum_total * discount_to_user  # Calculate discount amount
+                    final_price = sum_total - discount_amount  # Subtract discount from total
+
+                    response_data = {
+                        "cart_data": cart_data,
+                        "sum_total": sum_total,  # Total before discount
+                        "discount_amount": discount_amount,  # Discount applied
+                        "final_price": final_price  # Total after discount
+                    }
+
+                    print("Discount applied:", discount_amount)
+                    print("Final total after discount:", final_price)
+                
 
         if not cart_data:
             return Response({"error": "No products found in cart"}, status=400)
 
-        return Response(cart_data)  
+        return Response(response_data) 
 
 
 class Count_order_update(APIView):
