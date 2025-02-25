@@ -539,16 +539,38 @@ class Profile_update_custumer(APIView):
 
 
     def patch(self, request, id):
-        try:
-            customer = Customer.objects.get(id=id)
-        except Customer.DoesNotExist:
-            return Response({"error": "Customer not found"}, status=404)
+            try:
+                customer = Customer.objects.get(id=id)
+            except Customer.DoesNotExist:
+                return Response({"error": "Customer not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = Register_custumerSerializer(customer, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=200)
-        return Response(serializer.errors, status=400)
+            # Handle Address Update Separately (if provided)
+            new_adress = request.data.get('adress')
+            
+            if new_adress:
+                # Ensure `adress` is a list of dictionaries
+                if not isinstance(new_adress, list) or not all(isinstance(item, dict) for item in new_adress):
+                    return Response({'error': 'adress must be a list of dictionaries'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Merge new address data with existing address data
+                existing_adress = customer.adress  # Get current address list
+                
+                for i, new_entry in enumerate(new_adress):
+                    if i < len(existing_adress):  # Update existing addresses
+                        existing_adress[i].update(new_entry)
+                    else:  # Append new addresses if the index exceeds existing ones
+                        existing_adress.append(new_entry)
+                
+                customer.adress = existing_adress  # Save updated address
+                customer.save()
+
+            # Proceed with updating other fields (if any)
+            serializer = Register_custumerSerializer(customer, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self,request,id):
         customer = Customer.objects.get(id=id)

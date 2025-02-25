@@ -14,7 +14,7 @@ class Customer(models.Model):
     search_history = models.JSONField(default=list, blank=True)
     phone_number = models.CharField(max_length=10,blank=True)
     status = models.BooleanField(default=False) 
-    address = models.JSONField(blank=True)
+    address = models.JSONField(default=list, blank=True)
 
 
     def add_search_term(self, term):
