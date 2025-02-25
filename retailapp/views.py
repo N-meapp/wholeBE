@@ -24,32 +24,42 @@ class Register_custumer(APIView):
         serializer = Register_custumerSerializer(custumers,many =True)
         return Response(serializer.data,status=status.HTTP_200_OK)
     
+
     def post(self, request):
         serializer = Register_custumerSerializer(data=request.data)
-        address = request.data.get('address')
-
-        # Validate address format
-        if address is None or not isinstance(address, list):
-            return Response({'message': 'adress must be a list of dictionaries'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Ensure each address is a dictionary
-        if not all(isinstance(item, dict) for item in address):
-            return Response({'message': 'Each address must be a dictionary'}, status=status.HTTP_400_BAD_REQUEST)
-
+        print("the incoming data",request.data)
         if serializer.is_valid():
-            username = serializer.validated_data.get('username')
-            print("Username from request: ", username)
+            serializer.save()
+            print("the saved data is",serializer)
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=500)
+    
+    # def post(self, request):
+    #     serializer = Register_custumerSerializer(data=request.data)
+    #     address = request.data.get('address')
 
-            # Check if username already exists
-            if Customer.objects.filter(username=username).exists():
-                return Response({'message': 'Username already taken'}, status=status.HTTP_400_BAD_REQUEST)
+    #     # Validate address format
+    #     if address is None or not isinstance(address, list):
+    #         return Response({'message': 'adress must be a list of dictionaries'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    #     # Ensure each address is a dictionary
+    #     if not all(isinstance(item, dict) for item in address):
+    #         return Response({'message': 'Each address must be a dictionary'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Save customer with address
-            customer = serializer.save()
-            customer.address = address  # Store address as a list of dictionaries
-            customer.save()
+    #     if serializer.is_valid():
+    #         username = serializer.validated_data.get('username')
+    #         print("Username from request: ", username)
 
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+    #         # Check if username already exists
+    #         if Customer.objects.filter(username=username).exists():
+    #             return Response({'message': 'Username already taken'}, status=status.HTTP_400_BAD_REQUEST)
+
+    #         # Save customer with address
+    #         customer = serializer.save()
+    #         customer.address = address  # Store address as a list of dictionaries
+    #         customer.save()
+
+    #         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         return Response(serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
