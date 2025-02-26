@@ -19,6 +19,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 import jwt
 import datetime
 from django.contrib.auth.hashers import check_password
+import base64
 
 SECRET_KEY = "django-insecure-+k#qrwj!@v*ls7(*xs%8!0wfip@6g^e!v!rn&d5y5d7tuj4vm(" 
 
@@ -49,21 +50,47 @@ class Register_custumer(APIView):
         return Response({"message": "User registered successfully"}, status=status.HTTP_201_CREATED)
 
 
-class CustomerLoginView(APIView):
+class UserLoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
         username = request.data.get("username")
         password = request.data.get("password")
 
-        customer = get_object_or_404(Customer, username=username)
+        user = None
+        user_type = None
+
+        # Try to get the user from Customer model
+        try:
+            user = Customer.objects.get(username=username)
+            user_type = "customer"
+        except Customer.DoesNotExist:
+            pass  # If not found, continue checking in Administrator
+
+        # If not found in Customer, try the Administrator model
+        if user is None:
+            try:
+                user = Administrator.objects.get(username=username)
+                user_type = "admin"
+            except Administrator.DoesNotExist:
+                return Response({"error": "Invalid username or password"}, status=status.HTTP_401_UNAUTHORIZED)
 
         # Check password
-        if not check_password(password, customer.password):
+        if not check_password(password, user.password):
             return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Generate access & refresh tokens
-        refresh = RefreshToken.for_user(customer)
+        # Generate JWT tokens (Manually create tokens for non-AbstractUser models)
+
+        profile_image_url = None
+        if hasattr(user, "profile_image") and user.profile_image:
+            profile_image_url = user.profile_image.url
+        print(type(getattr(user, "profile_image", None)))
+
+        refresh = RefreshToken()
+        refresh.payload["user_id"] = user.id
+        refresh.payload["username"] = user.username
+        refresh.payload["user_type"] = user_type
+
         access_token = str(refresh.access_token)
         refresh_token = str(refresh)
 
@@ -71,10 +98,12 @@ class CustomerLoginView(APIView):
             "access_token": access_token,
             "refresh_token": refresh_token,
             "message": "Login successful",
-            "cusomer_id":customer.id,
-            "customername":customer.username
+            "user_id": user.id,
+            "username": user.username,
+            "user_type": user_type,
+            "profile_img": profile_image_url
         }, status=status.HTTP_200_OK)
-
+        
 
 
 class Logout_view(APIView):
@@ -98,7 +127,7 @@ class ProductCategoryView(APIView):
         categories = Product_Category.objects.all()
         serializer = ProductCategorySerializer(categories, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
+
     def post(self, request):
         serializer = ProductCategorySerializer(data=request.data)
         print("the incoming data",request.data)
