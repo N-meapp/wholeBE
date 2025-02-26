@@ -14,6 +14,13 @@ from django.db.models import Q
 from django.core.files.uploadedfile import UploadedFile
 import json
 from django.conf import settings
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+import jwt
+import datetime
+from django.contrib.auth.hashers import check_password
+
+SECRET_KEY = "django-insecure-+k#qrwj!@v*ls7(*xs%8!0wfip@6g^e!v!rn&d5y5d7tuj4vm(" 
 
 
 class Register_custumer(APIView):
@@ -26,79 +33,49 @@ class Register_custumer(APIView):
     
 
     def post(self, request):
-        serializer = Register_custumerSerializer(data=request.data)
-        print("the incoming data",request.data)
-        if serializer.is_valid():
-            serializer.save()
-            print("the saved data is",serializer)
-            return Response(serializer.data, status=201)
-        return Response(serializer.errors, status=500)
-    
-    # def post(self, request):
-    #     serializer = Register_custumerSerializer(data=request.data)
-    #     address = request.data.get('address')
+        username = request.data.get("username")
+        password = request.data.get("password")
 
-    #     # Validate address format
-    #     if address is None or not isinstance(address, list):
-    #         return Response({'message': 'adress must be a list of dictionaries'}, status=status.HTTP_400_BAD_REQUEST)
-        
-    #     # Ensure each address is a dictionary
-    #     if not all(isinstance(item, dict) for item in address):
-    #         return Response({'message': 'Each address must be a dictionary'}, status=status.HTTP_400_BAD_REQUEST)
+        if not username or not password:
+            return Response({"error": "Username and password are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    #     if serializer.is_valid():
-    #         username = serializer.validated_data.get('username')
-    #         print("Username from request: ", username)
+        if Customer.objects.filter(username=username).exists():
+            return Response({"error": "Username already taken"}, status=status.HTTP_400_BAD_REQUEST)
 
-    #         # Check if username already exists
-    #         if Customer.objects.filter(username=username).exists():
-    #             return Response({'message': 'Username already taken'}, status=status.HTTP_400_BAD_REQUEST)
+        # Create new customer with hashed password
+        customer = Customer(username=username, password=make_password(password))
+        customer.save()
 
-    #         # Save customer with address
-    #         customer = serializer.save()
-    #         customer.address = address  # Store address as a list of dictionaries
-    #         customer.save()
+        return Response({"message": "User registered successfully"}, status=status.HTTP_201_CREATED)
 
-    #         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        return Response(serializer.errors, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-class Login_view(APIView):
+class CustomerLoginView(APIView):
     permission_classes = [AllowAny]
-    def post(self,request):
-        data = request.data
-        if data:
-            # print("the requested data",data)
-            username = data.get('username')
-            password = data.get('password')
-            print("the requested data",username,password)
 
-            check_items = Customer.objects.filter(username=username , password=password).first()
-            if check_items:
-                request.session["author"] = username
-                print("the seesion data",request.session["author"])
+    def post(self, request):
+        username = request.data.get("username")
+        password = request.data.get("password")
 
-                content = {
-                    'message': 'login successfully',
-                    "username": check_items.username,
-                    "user_id": check_items.id
-                    }
-                return Response(content)
-            elif Administrator.objects.filter(username=username, password=password).exists():
-                admin_user = Administrator.objects.get(username=username, password=password)
-                
-                content = {
-                    'message': 'Login successfully',
-                    'username': admin_user.username,  
-                    'user_id': admin_user.id    
-                }
-                
-                return Response(content, status=200)
+        customer = get_object_or_404(Customer, username=username)
 
-            else:
-                content = {'message': 'user name is incorrect'}
-                return Response(content)
-        return Response(data.errors, status=400)
+        # Check password
+        if not check_password(password, customer.password):
+            return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Generate access & refresh tokens
+        refresh = RefreshToken.for_user(customer)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        return Response({
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "message": "Login successful",
+            "cusomer_id":customer.id,
+            "customername":customer.username
+        }, status=status.HTTP_200_OK)
+
+
 
 class Logout_view(APIView):
     permission_classes = [AllowAny]
@@ -530,47 +507,50 @@ class Profile_update_custumer(APIView):
     permission_classes = [AllowAny]
 
     def get(self,request,id):
-        customer = Customer.objects.get(id =id)
-        if customer:
+        try:
+            customer = Customer.objects.get(id=id)
             serializer = Register_custumerSerializer(customer)
             return Response(serializer.data,status=200)
-        else:
+        except:
             return Response({"error": "Customer not found"},status=400)
 
 
     def patch(self, request, id):
-            try:
-                customer = Customer.objects.get(id=id)
-            except Customer.DoesNotExist:
-                return Response({"error": "Customer not found"}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            customer = Customer.objects.get(id=id)
+        except Customer.DoesNotExist:
+            return Response({"error": "Customer not found"}, status=status.HTTP_404_NOT_FOUND)
 
-            # Handle Address Update Separately (if provided)
-            new_adress = request.data.get('adress')
-            
-            if new_adress:
-                # Ensure `adress` is a list of dictionaries
-                if not isinstance(new_adress, list) or not all(isinstance(item, dict) for item in new_adress):
-                    return Response({'error': 'adress must be a list of dictionaries'}, status=status.HTTP_400_BAD_REQUEST)
-                
-                # Merge new address data with existing address data
-                existing_adress = customer.adress  # Get current address list
-                
-                for i, new_entry in enumerate(new_adress):
-                    if i < len(existing_adress):  # Update existing addresses
-                        existing_adress[i].update(new_entry)
-                    else:  # Append new addresses if the index exceeds existing ones
-                        existing_adress.append(new_entry)
-                
-                customer.adress = existing_adress  # Save updated address
-                customer.save()
+        # Get the request data
+        request_data = request.data.copy()
 
-            # Proceed with updating other fields (if any)
-            serializer = Register_custumerSerializer(customer, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_200_OK)
+        # Handle Address Update Separately (if provided)
+        new_adress = request_data.pop('address', None)
 
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if new_adress:
+            if not isinstance(new_adress, list) or not all(isinstance(item, dict) for item in new_adress):
+                return Response({'error': 'adress must be a list of dictionaries'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Retrieve existing address data
+            existing_adress = customer.address if customer.address else []
+
+            # Merge new data into existing addresses
+            for i, new_entry in enumerate(new_adress):
+                if i < len(existing_adress):
+                    existing_adress[i].update(new_entry)  # Merge updates
+                else:
+                    existing_adress.append(new_entry)  # Append new addresses if index exceeds existing ones
+
+            customer.address = existing_adress
+            customer.save()
+
+        # Proceed with updating other fields if needed
+        serializer = Register_custumerSerializer(customer, data=request_data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self,request,id):
         customer = Customer.objects.get(id=id)

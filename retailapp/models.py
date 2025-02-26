@@ -3,19 +3,31 @@ from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import UploadedFile
+from django.contrib.auth.hashers import make_password
+from django.contrib.auth.models import AbstractBaseUser
+from django.contrib.auth.models import BaseUserManager
+from django.contrib.auth.hashers import check_password
 
 # Create your models here.
 
 class Customer(models.Model):
-    username = models.CharField(max_length=30)
-    password = models.CharField(max_length=80)
-    profile_image = models.ImageField(upload_to='media/',default="profile.jpg")
+    username = models.CharField(max_length=30, unique=True)
+    password = models.CharField(max_length=128)  # Increased length for hashed passwords
+    profile_image = models.ImageField(upload_to='media/', default="media/profile_w1sjxSH.jpg")
     discount_individual = models.CharField(max_length=20, blank=True)
     search_history = models.JSONField(default=list, blank=True)
-    phone_number = models.CharField(max_length=10,blank=True)
-    status = models.BooleanField(default=False) 
+    phone_number = models.CharField(max_length=10, blank=True)
+    status = models.BooleanField(default=False)
     address = models.JSONField(default=list, blank=True)
 
+    def save(self, *args, **kwargs):
+        # Hash the password before saving
+        if not self.password.startswith('pbkdf2_sha256$'):
+            self.password = make_password(self.password)
+        super().save(*args, **kwargs)
+
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
 
     def add_search_term(self, term):
         if not isinstance(term, str):
@@ -32,10 +44,24 @@ class Customer(models.Model):
     def __str__(self):
         return self.username
 
+
+
 class Administrator(models.Model):
     username = models.CharField(max_length=15)
     password = models.CharField(max_length=15)
+
+    def save(self, *args, **kwargs):
+    # Hash the password before saving
+        if not self.password.startswith('pbkdf2_sha256$'):
+            self.password = make_password(self.password)
+        super().save(*args, **kwargs)
+
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
     
+    def __str__(self):
+        return self.username
+
 
 class Login(models.Model):
     username = models.CharField(max_length=30)
