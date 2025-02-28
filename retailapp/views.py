@@ -1205,3 +1205,39 @@ class Enquiry_send(APIView):
         else:
             return Response({"error": "Enquiry not found"},status=400)
 
+
+class Top_products(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        orders_list = Order_products.objects.all()
+        response_data = []  # Move response_data outside of the loop
+        seen_products = set()
+
+        for orders in orders_list:
+            for product in orders.product_items:
+                if product.get('order_status') == 'accepted':  # Use .get() to avoid KeyError
+                    product_id = product.get('product_id')
+                    print('The product id with status accepted:', product_id)
+                    if product_id in seen_products:  # Skip if already added
+                        continue
+                    try:
+                        product_list = Product_list.objects.get(id=product_id)
+                    except Product_list.DoesNotExist:
+                        continue  # Skip if product not found
+                    seen_products.add(product_id)
+                    
+                    response_data.append({
+                        'product_id': product_id,
+                        'product_name':product_list.product_name,
+                        'product_images':product_list.product_images if product_list.product_images else None,
+                        'product_description':product_list.product_description,
+                        'product_discount':product_list.product_discount if product_list.product_discount else None,
+                        'product_category':product_list.product_category,
+                        'prize_range':product_list.prize_range,
+                        'product_stock':product_list.product_stock,
+                        'order_status': product.get('order_status')
+                    })
+        
+        return Response(response_data)
+                
