@@ -838,13 +838,16 @@ class order_products(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def get(self, request):
-        user = request.data.get('username')
-        print("The username holder:", user)
+        user = request.data.get('userid')
+        print("The userid", user)
 
         if user is not None:
             order_list = []
-            customer = Customer.objects.filter(username=user).first()
-            check_order = Order_products.objects.filter(user_id=user).first()
+            customer = Customer.objects.filter(id=user).first()
+            user_name = customer.username
+            print("The user_name", user_name)
+
+            check_order = Order_products.objects.filter(user_id=user_name).first()
             print("The order item with user:", check_order)
 
             if check_order:
@@ -863,7 +866,7 @@ class order_products(APIView):
                             "user_id": user,
                             "username":customer.username,
                             "temp_address": products.get("temp_address"),
-                            "permanent_address": customer.permanent_adress,
+                            "permanent_address": customer.address,
                             "product_name": product_list.product_name,
                             "product_images": product_list.product_images
                             if product_list.product_images
@@ -1099,7 +1102,7 @@ class Total_orders_list(APIView):
         return Response(order_products,status=200)
             
 
-class Search_all(APIView):
+class Search_all_products(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -1164,7 +1167,7 @@ class SearchAllCustomer(APIView):
                 "name": c.username,
                 "profile_image": request.build_absolute_uri(c.profile_image.url) if c.profile_image else None,
                 "discount_individual": c.discount_individual,
-                "permanent_adress":c.permanent_adress,
+                "permanent_adress":c.address,
                 "phone_number":c.phone_number,
                 "status":c.status
             }
@@ -1172,6 +1175,61 @@ class SearchAllCustomer(APIView):
         ]
 
         return Response({"results": product_data}, status=200)
+    
+
+
+class SearchOrders(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        search_term = request.data.get("search_term", "").strip()
+
+        if not search_term:
+            return Response({"error": "Search term is required"}, status=400)
+
+        # Check if the search term matches user_id
+        order_list = Order_products.objects.filter(user_id__icontains=search_term)
+
+        full_details_required = order_list.exists()  # If searching by user_id, return full details
+
+        if not full_details_required:
+            order_list = Order_products.objects.filter(product_items__icontains=search_term)
+
+        if not order_list.exists():
+            return Response({"message": "No matching orders found"}, status=404)
+
+        # Process response
+        filtered_orders = []
+        for order in order_list:
+            if full_details_required:
+                # If searching by user_id, include full product_items
+                filtered_orders.append({
+                    "id": order.id,
+                    "user_id": order.user_id,
+                    "product_items": order.product_items  # Include full details
+                })
+            else:
+                # Filter only matching products
+                matching_products = [
+                    product for product in order.product_items
+                    if (
+                        search_term.lower() in str(product.get("order_status", "")).lower() or
+                        search_term.lower() in str(product.get("order_id", "")).lower() or
+                        search_term.lower() in str(product.get("order_date", "")).lower() or
+                        search_term.lower() in str(product.get("product_name", "")).lower()
+                        )
+                ]
+                if matching_products:
+                    filtered_orders.append({
+                        "id": order.id,
+                        "user_id": order.user_id,
+                        "product_items": matching_products  # Only include filtered items
+                    })
+                
+
+        return Response({"orders": filtered_orders}, status=200)
+
+
 
 class Enquiry_send(APIView):
     permission_classes = [AllowAny]

@@ -27,11 +27,13 @@ urlpatterns = [
     path('api/Total_counts_dashboard/', Total_counts_dashboard.as_view(), name='Total_counts_dashboard'),
     path('api/Update_customer_status/<int:id>/', Update_customer_status.as_view(), name='Update_customer_status'),
     path('api/Total_orders_list/', Total_orders_list.as_view(), name='Total_orders_list'),
-    path('api/Search_all/', Search_all.as_view(), name='Search_all'),
+    path('api/Search_all_products/', Search_all_products.as_view(), name='Search_all_products'),
     path('api/SearchAllCustomer/', SearchAllCustomer.as_view(), name='SearchAllCustomer'),
+    path('api/SearchOrders/', SearchOrders.as_view(), name='SearchOrders'),
     path('api/CancelOrder/', CancelOrder.as_view(), name='CancelOrder'),
     path('api/Enquiry_send/', Enquiry_send.as_view(), name='Enquiry_send'),
     path('api/Top_products/', Top_products.as_view(), name='Top_products'),
-
-    
 ]
+
+
+
