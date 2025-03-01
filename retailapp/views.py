@@ -655,7 +655,7 @@ class Adding_cart(APIView):
                 
 
     def get(self, request):
-        user = request.data.get('user_id')
+        user = request.data.get('userid')
         print('Current author is:', user)
 
         user_cart_items = Cart_items.objects.filter(user_id=user)
@@ -683,7 +683,7 @@ class Adding_cart(APIView):
                 print("Fetched Product Object:", product_obj)
 
                 # Get customer details and individual discount
-                invidual = Customer.objects.filter(username=user).first()
+                invidual = Customer.objects.filter(id=user).first()
                 individual_discount = float(invidual.discount_individual) / 100 if invidual and invidual.discount_individual else 0
 
                 print("Individual Discount:", individual_discount)
@@ -844,10 +844,8 @@ class order_products(APIView):
         if user is not None:
             order_list = []
             customer = Customer.objects.filter(id=user).first()
-            user_name = customer.username
-            print("The user_name", user_name)
 
-            check_order = Order_products.objects.filter(user_id=user_name).first()
+            check_order = Order_products.objects.filter(user_id=user).first()
             print("The order item with user:", check_order)
 
             if check_order:
