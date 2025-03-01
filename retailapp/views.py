@@ -554,23 +554,20 @@ class Profile_update_custumer(APIView):
         request_data = request.data.copy()
 
         # Handle Address Update Separately (if provided)
-        new_adress = request_data.pop('address', None)
+        new_address = request_data.pop('address', None)
 
-        if new_adress:
-            if not isinstance(new_adress, list) or not all(isinstance(item, dict) for item in new_adress):
-                return Response({'error': 'adress must be a list of dictionaries'}, status=status.HTTP_400_BAD_REQUEST)
+        if new_address:
+            if not isinstance(new_address, dict):
+                return Response({'error': 'Address must be a dictionary'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Retrieve existing address data
-            existing_adress = customer.address if customer.address else []
+            # Retrieve existing address data (ensure it's a dictionary)
+            existing_address = customer.address if isinstance(customer.address, dict) else {}
 
-            # Merge new data into existing addresses
-            for i, new_entry in enumerate(new_adress):
-                if i < len(existing_adress):
-                    existing_adress[i].update(new_entry)  # Merge updates
-                else:
-                    existing_adress.append(new_entry)  # Append new addresses if index exceeds existing ones
+            # Merge new data into existing address
+            existing_address.update(new_address)
 
-            customer.address = existing_adress
+            # Save the updated address
+            customer.address = existing_address
             customer.save()
 
         # Proceed with updating other fields if needed
@@ -819,8 +816,9 @@ class order_products(APIView):
         print("Received user_id:", user_id)
         print("Received products:", products)
 
+
         # Validate data
-        if user_id is None or not isinstance(products, list):
+        if user_id is None or not isinstance(products, list) :
             return Response({"error": "Invalid data format (user_id missing or products is not a list)"}, status=400)
 
         # Check if cart already exists for the user
@@ -863,8 +861,6 @@ class order_products(APIView):
                         {
                             "user_id": user,
                             "username":customer.username,
-                            "temp_address": products.get("temp_address"),
-                            "permanent_address": customer.address,
                             "product_name": product_list.product_name,
                             "product_images": product_list.product_images
                             if product_list.product_images

@@ -18,7 +18,7 @@ class Customer(models.Model):
     search_history = models.JSONField(default=list, blank=True)
     phone_number = models.CharField(max_length=10, blank=True)
     status = models.BooleanField(default=False)
-    address = models.JSONField(default=list, blank=True)
+    address = models.JSONField(default=dict,blank=True)
 
     def save(self, *args, **kwargs):
         # Hash the password before saving
