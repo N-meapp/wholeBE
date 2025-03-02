@@ -652,7 +652,7 @@ class Adding_cart(APIView):
                 
 
     def get(self, request):
-        user = request.data.get('userid')
+        user = request.query_params.get('userid')
         print('Current author is:', user)
 
         user_cart_items = Cart_items.objects.filter(user_id=user)
