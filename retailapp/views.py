@@ -805,7 +805,6 @@ class Delete_all_cart(APIView):
     
 
 
-
 class order_products(APIView):
     permission_classes = [AllowAny]
 
@@ -1122,11 +1121,15 @@ class Search_all_products(APIView):
 
         if not products.exists():
             return Response({"message": "No matching products found"}, status=404)
+        
 
-        product_data = [{ 
-            "id": p.id, "name": p.product_name, "category":p.product_category,"product_description":p.product_description,"product_images":p.product_images if p.product_images else None,"prize_range":p.prize_range,"product_discount":p.product_discount,
-            } for p in products]
-        return Response({"results": product_data}, status=200)
+        serializer = ProductListSerializer(products, many=True)
+        return Response({"products": serializer.data}, status=200)
+
+        # product_data = [{ 
+        #     "id": p.id, "name": p.product_name, "category":p.product_category,"product_description":p.product_description,"product_stock":p.product_stock,"product_images":p.product_images if p.product_images else None,"prize_range":p.prize_range,"product_discount":p.product_discount,
+        #     } for p in products]
+        # return Response({"results": product_data}, status=200)
 
 
 class SearchAllCustomer(APIView):
@@ -1154,19 +1157,22 @@ class SearchAllCustomer(APIView):
 
         if not customers.exists():
             return Response({"message": "No matching customers found"}, status=404)
+        
+        serializer = Register_custumerSerializer(customers, many=True)
+        return Response({"products": serializer.data}, status=200)
 
-        product_data = [
-            {
-                "id": c.id,
-                "name": c.username,
-                "profile_image": request.build_absolute_uri(c.profile_image.url) if c.profile_image else None,
-                "discount_individual": c.discount_individual,
-                "permanent_adress":c.address,
-                "phone_number":c.phone_number,
-                "status":c.status
-            }
-            for c in customers
-        ]
+        # product_data = [
+        #     {
+        #         "id": c.id,
+        #         "name": c.username,
+        #         "profile_image": request.build_absolute_uri(c.profile_image.url) if c.profile_image else None,
+        #         "discount_individual": c.discount_individual,
+        #         "permanent_adress":c.address,
+        #         "phone_number":c.phone_number,
+        #         "status":c.status
+        #     }
+        #     for c in customers
+        # ]
 
         return Response({"results": product_data}, status=200)
     
