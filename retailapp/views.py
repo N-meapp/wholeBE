@@ -711,6 +711,7 @@ class Adding_cart(APIView):
                     cart_data.append({
                         "user_id": item.user_id,
                         "username":invidual.username,
+                        "product_id":p_id,
                         "total_count": product_count,
                         "product_name": product_obj.product_name,
                         "product_images": product_obj.product_images if product_obj.product_images else None,
