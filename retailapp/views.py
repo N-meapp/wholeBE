@@ -1184,52 +1184,35 @@ class SearchOrders(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        search_term = request.data.get("search_term", "").strip()
+        search_term = request.data.get("search_term", "").strip().lower()
 
         if not search_term:
             return Response({"error": "Search term is required"}, status=400)
 
-        try:
-            search_str = str(search_term)  # Convert to string explicitly
-        except Exception:
-            return Response({"error": "Invalid search term"}, status=400)
-
-        print(f"Search Term: {search_str}")
-
         filtered_orders = []
 
-        # **Search by user_id (Exact match for numbers, icontains for text)**
-        if search_str.isdigit():
-            order_list = Order_products.objects.filter(user_id=search_str)
-        else:
-            order_list = Order_products.objects.filter(user_id__icontains=search_str)
+        # **Step 1: Search in user_id with icontains**
+        order_list = Order_products.objects.filter(
+            Q(user_id__icontains=search_term)  # Partial match for user_id
+        )
 
-        if order_list.exists():
-            for order in order_list:
-                filtered_orders.append({
-                    "id": order.id,
-                    "user_id": order.user_id,
-                    "product_items": order.product_items
-                })
-        else:
-            # **Fetch all orders and manually filter product_items**
+        # **Step 2: Search in product_items**
+        if not order_list.exists():
             all_orders = Order_products.objects.all()
 
             for order in all_orders:
-                product_items = order.product_items  # Directly use it if it's a list
-
-                if not isinstance(product_items, list):  # Convert only if it's a string
-                    try:
-                        product_items = json.loads(product_items)
-                    except (json.JSONDecodeError, TypeError):
-                        continue  # Skip if JSON is invalid
+                try:
+                    product_items = json.loads(order.product_items) if isinstance(order.product_items, str) else order.product_items
+                except json.JSONDecodeError:
+                    continue  # Skip if JSON is invalid
 
                 matching_products = [
                     product for product in product_items
-                    if search_str.lower() == str(product.get("order_status", "")).lower()
-                    or search_str.lower() == str(product.get("order_id", "")).lower()
-                    or search_str.lower() == str(product.get("order_date", "")).lower()
-                    or search_str.lower() == str(product.get("product_name", "")).lower()
+                    if search_term in str(product.get("order_status", "")).lower()
+                    or search_term in str(product.get("order_id", "")).lower()
+                    or search_term in str(product.get("order_date", "")).lower()
+                    or search_term in str(product.get("product_name", "")).lower()
+                    or search_term in str(product.get("product_category", "")).lower()
                 ]
 
                 if matching_products:
@@ -1238,6 +1221,13 @@ class SearchOrders(APIView):
                         "user_id": order.user_id,
                         "product_items": matching_products
                     })
+
+        else:
+            # Directly add matching orders
+            filtered_orders = [
+                {"id": order.id, "user_id": order.user_id, "product_items": order.product_items}
+                for order in order_list
+            ]
 
         if not filtered_orders:
             return Response({"message": "No matching orders found"}, status=404)
