@@ -29,7 +29,4 @@ urlpatterns = [
     # path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),    
     path('', include('retailapp.urls')),
 ]
-if settings.DEBUG:  # Serve media files only in debug mode
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
 

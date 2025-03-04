@@ -44,7 +44,9 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
    
 
-    'retailapp',  
+    'retailapp', 
+    'cloudinary',
+    'cloudinary_storage', 
 ]
 
 MIDDLEWARE = [
@@ -195,3 +197,24 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
 ]
 # SITE_URL = "http://127.0.0.1:8000"
+
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': 'djedeaw0l',
+    'API_KEY': '332145637315313',
+    'API_SECRET': 'QGzj970zckzTxSBl3t6Lzpwgmx0',
+}
+
+cloudinary.config( 
+    cloud_name = CLOUDINARY_STORAGE['CLOUD_NAME'],  
+    api_key = CLOUDINARY_STORAGE['API_KEY'],  
+    api_secret = CLOUDINARY_STORAGE['API_SECRET']
+)
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+
+MEDIA_URL = "https://res.cloudinary.com/djedeaw0l/"

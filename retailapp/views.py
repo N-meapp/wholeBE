@@ -867,7 +867,7 @@ class order_products(APIView):
                             "product_category": product_list.product_category,
                             "product_stock": product_list.product_stock,
                             "order_status": products.get("order_status"),
-                            "total_count": products.get("total_count"),
+                            "total_quantity": products.get("total_count"),
                             "total_amount": products.get("total_amount"),
                         }
                     )
@@ -1174,8 +1174,9 @@ class SearchAllCustomer(APIView):
         #     for c in customers
         # ]
 
-        return Response({"results": product_data}, status=200)
-    
+        # return Response({"results": product_data}, status=200)
+
+
 
 
 class SearchOrders(APIView):
@@ -1187,49 +1188,62 @@ class SearchOrders(APIView):
         if not search_term:
             return Response({"error": "Search term is required"}, status=400)
 
-        # Check if the search term matches user_id
-        order_list = Order_products.objects.filter(user_id__icontains=search_term)
+        try:
+            search_str = str(search_term)  # Convert to string explicitly
+        except Exception:
+            return Response({"error": "Invalid search term"}, status=400)
 
-        full_details_required = order_list.exists()  # If searching by user_id, return full details
+        print(f"Search Term: {search_str}")
 
-        if not full_details_required:
-            order_list = Order_products.objects.filter(product_items__icontains=search_term)
-
-        if not order_list.exists():
-            return Response({"message": "No matching orders found"}, status=404)
-
-        # Process response
         filtered_orders = []
-        for order in order_list:
-            if full_details_required:
-                # If searching by user_id, include full product_items
+
+        # **Search by user_id (Exact match for numbers, icontains for text)**
+        if search_str.isdigit():
+            order_list = Order_products.objects.filter(user_id=search_str)
+        else:
+            order_list = Order_products.objects.filter(user_id__icontains=search_str)
+
+        if order_list.exists():
+            for order in order_list:
                 filtered_orders.append({
                     "id": order.id,
                     "user_id": order.user_id,
-                    "product_items": order.product_items  # Include full details
+                    "product_items": order.product_items
                 })
-            else:
-                # Filter only matching products
+        else:
+            # **Fetch all orders and manually filter product_items**
+            all_orders = Order_products.objects.all()
+
+            for order in all_orders:
+                product_items = order.product_items  # Directly use it if it's a list
+
+                if not isinstance(product_items, list):  # Convert only if it's a string
+                    try:
+                        product_items = json.loads(product_items)
+                    except (json.JSONDecodeError, TypeError):
+                        continue  # Skip if JSON is invalid
+
                 matching_products = [
-                    product for product in order.product_items
-                    if (
-                        search_term.lower() in str(product.get("order_status", "")).lower() or
-                        search_term.lower() in str(product.get("order_id", "")).lower() or
-                        search_term.lower() in str(product.get("order_date", "")).lower() or
-                        search_term.lower() in str(product.get("product_name", "")).lower()
-                        )
+                    product for product in product_items
+                    if search_str.lower() == str(product.get("order_status", "")).lower()
+                    or search_str.lower() == str(product.get("order_id", "")).lower()
+                    or search_str.lower() == str(product.get("order_date", "")).lower()
+                    or search_str.lower() == str(product.get("product_name", "")).lower()
                 ]
+
                 if matching_products:
                     filtered_orders.append({
                         "id": order.id,
                         "user_id": order.user_id,
-                        "product_items": matching_products  # Only include filtered items
+                        "product_items": matching_products
                     })
-                
+
+        if not filtered_orders:
+            return Response({"message": "No matching orders found"}, status=404)
 
         return Response({"orders": filtered_orders}, status=200)
 
-
+    
 
 class Enquiry_send(APIView):
     permission_classes = [AllowAny]

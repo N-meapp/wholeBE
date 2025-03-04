@@ -1,3 +1,4 @@
+
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
@@ -7,13 +8,13 @@ from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import BaseUserManager
 from django.contrib.auth.hashers import check_password
-
+from cloudinary.models import CloudinaryField
 # Create your models here.
 
 class Customer(models.Model):
     username = models.CharField(max_length=30, unique=True)
     password = models.CharField(max_length=128)  # Increased length for hashed passwords
-    profile_image = models.ImageField(upload_to='media/', default="media/profile_w1sjxSH.jpg")
+    profile_image = CloudinaryField('image', folder="customerprofile/",blank=True, null=True , default ="https://res.cloudinary.com/djedeaw0l/image/upload/v1740995374/profile_fub4k1.jpg")
     discount_individual = models.CharField(max_length=20, blank=True)
     search_history = models.JSONField(default=list, blank=True)
     phone_number = models.CharField(max_length=10, blank=True)
@@ -73,7 +74,7 @@ class Login(models.Model):
 
 class Product_Category(models.Model):
     category_name = models.CharField(max_length=20)
-    image = models.ImageField(upload_to='media/') 
+    image =  CloudinaryField('image', folder="product_category/",blank=True, null=True) 
 
 
     def __str__(self):
