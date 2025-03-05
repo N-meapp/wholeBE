@@ -341,100 +341,43 @@ class Product_updateanddelete(APIView):
         except Product_list.DoesNotExist:
             return Response({"error": "Product not found"}, status=404)
 
-        data = request.data.copy()  # Copy request data
+        #  Extracting only necessary fields instead of deep copying
+        item_no = request.data.get("item_no")
+        new_image = request.FILES.get("new_image")  # Files are in request.FILES
 
-        # 🛠️ Handle updating a specific index in prize_range
-        index = data.pop("index", None)
-        new_value = data.pop("new_value", None)
-
-        if index is not None and new_value is not None:
-            try:
-                index = int(index)  # Convert index to integer
-            except (ValueError, TypeError):
-                return Response({"error": "index must be an integer"}, status=400)
-
-            if not isinstance(item.prize_range, list):
-                return Response({"error": "prize_range is not a list"}, status=400)
-
-            if index < 0 or index >= len(item.prize_range):
-                return Response({"error": "Index out of range"}, status=400)
-
-            item.prize_range[index] = new_value
-            data["prize_range"] = item.prize_range
-
-        
-        item_no = data.pop("item_no", None)
-        new_image = request.FILES.get("new_image")  
-        print("the item no:",item_no,new_image)
-
-
-        # Ensure item_no is properly extracted
-        if isinstance(item_no, list) and item_no:
-            item_no = item_no[0]  # Extract first value
+        if item_no is None or new_image is None:
+            return Response({"error": "Both item_no and new_image are required"}, status=400)
 
         try:
-            item_no = int(item_no)  # Convert to integer
+            item_no = int(item_no)
         except (ValueError, TypeError):
             return Response({"error": "item_no must be an integer"}, status=400)
 
-        if item_no is not None and new_image is not None:
-            try:
-                item_no = int(item_no)  # Convert index to integer
-            except (ValueError, TypeError):
-                return Response({"error": "item_no must be an integer"}, status=400)
-            
-            if not isinstance(item.product_images, list):
-                return Response({"error": "product_images is not a list"}, status=400)
+        if not isinstance(item.product_images, list):
+            return Response({"error": "product_images is not a list"}, status=400)
 
-            if item_no < 0 or item_no >= len(item.product_images):
-                return Response({"error": "item_no out of range"}, status=400)
+        if item_no < 0 or item_no >= len(item.product_images):
+            return Response({"error": "item_no out of range"}, status=400)
 
-            #  Save new image to media storage
-
-            # Get the full server URL dynamically
-            # Get the full server URL dynamically
-            domain = settings.SITE_URL if hasattr(settings, "SITE_URL") else f"http://{request.get_host()}"
-            file_path = default_storage.save(f"{new_image.name}", ContentFile(new_image.read()))
-            # Construct the full URL
-            full_url = f"{domain}{settings.MEDIA_URL}{file_path}"
-
-            # Construct the full URL
-            
-            # file_path = default_storage.save(f"product_images/{new_image.name}", ContentFile(new_image.read()))
-            # full_url = f"{domain}{settings.MEDIA_URL}{file_path}"
-
-            #  Replace image at index
-            item.product_images[item_no] = full_url
-            data["product_images"] = json.dumps(item.product_images)
-        serializer = ProductListSerializer(item, data=data, partial=True)
-
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "Product updated successfully", "data": serializer.data}, status=200)
-
-        return Response(serializer.errors, status=400)
-
-
-    def delete(self,requestk,id):
+        #  Upload new image to Cloudinary
         try:
-            item = Product_list.objects.get(id=id)
-        except Product_list.DoesNotExist:
-            return Response({"error": "Product not found"}, status=404)
-        item.delete()
-        return Response({"message": "Product deleted successfully"}, status=200)
-    
-    def post(self,request,id):
-        try:
-            item = Product_list.objects.get(id=id)
-        except Product_list.DoesNotExist:
-            return Response({"error": "Product not found"}, status=404)
-        add_img = request.data.get('product_images')
-        print("the extra image",add_img)
+            cloudinary_response = cloudinary.uploader.upload(new_image)
+            cloudinary_url = cloudinary_response.get("secure_url")
 
-        item.add_extra_img(add_img)
-        serializer = ProductListSerializer(item)
-        print("the append data is",item)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            if not cloudinary_url:
+                return Response({"error": "Failed to upload image to Cloudinary"}, status=500)
+
+            #  Replace the image at the given index
+            item.product_images[item_no] = cloudinary_url
+            item.save()  # Save changes to the database
+
+        except Exception as e:
+            return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
+
+        serializer = ProductListSerializer(item, partial=True)
+
+        return Response({"message": "Product image updated successfully", "data": serializer.data}, status=200)
+
        
 
 

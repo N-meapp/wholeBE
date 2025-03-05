@@ -9,6 +9,7 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import BaseUserManager
 from django.contrib.auth.hashers import check_password
 from cloudinary.models import CloudinaryField
+import cloudinary.uploader
 # Create your models here.
 
 class Customer(models.Model):
@@ -117,18 +118,16 @@ class Product_list(models.Model):
     #         raise ValidationError("Only 5 images are allowed in product_images.")
     #     self.save()
 
-    def add_extra_img(self, add_img):
-        if not isinstance(add_img, UploadedFile):
-            raise ValidationError("Search term must be a file.")
-        # Ensure search_history is a list
-        if add_img not in self.product_images:  # Check for duplicates
-            self.product_images.append(add_img)
-            if len(self.product_images) > 5:  # Limit to 5 terms
-                self.product_images.pop(5)
-        self.save()
+    # def add_extra_img(self, add_img):
+    #     if not isinstance(add_img, UploadedFile):
+    #         raise ValidationError("Search term must be a file.")
+    #     # Ensure search_history is a list
+    #     if add_img not in self.product_images:  # Check for duplicates
+    #         self.product_images.append(add_img)
+    #         if len(self.product_images) > 5:  # Limit to 5 terms
+    #             self.product_images.pop(5)
+    #     self.save()
     
-    def __str__(self):
-        return self.product_name
 
 
 class Cart_items(models.Model):
