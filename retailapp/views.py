@@ -20,6 +20,8 @@ import jwt
 import datetime
 from django.contrib.auth.hashers import check_password
 import base64
+from cloudinary.uploader import upload
+from cloudinary.exceptions import Error
 
 SECRET_KEY = "django-insecure-+k#qrwj!@v*ls7(*xs%8!0wfip@6g^e!v!rn&d5y5d7tuj4vm(" 
 
@@ -164,61 +166,6 @@ class Product_categoryUpdate(APIView):
 
 
 
-# class ProductListPost(APIView):
-#     permission_classes = [AllowAny]
-    
-#     def get(self,request):
-#         product = Product_list.objects.all()
-#         serializer = ProductListSerializer(product, many = True)
-#         return Response(serializer.data)
-    
-
-#     def post(self, request):
-#         product_data = request.data  # Expecting a single dictionary
-
-#         if not isinstance(product_data, dict):
-#             return Response({"error": "Invalid format. Expected a dictionary."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         try:    
-#             # Extract product details
-#             prize_list = product_data.get('prize_range', [])
-#             image_list = product_data.get('product_images', [])
-
-#             # Validate prize_list
-#             if not isinstance(prize_list, list) or any(not isinstance(prize, dict) for prize in prize_list):
-#                 return Response({"error": "prize_range must be a list of dictionaries."}, status=status.HTTP_400_BAD_REQUEST)
-
-#             # Validate image_list
-#             if not isinstance(image_list, list) or any(not isinstance(img, UploadedFile) for img in image_list):
-#                 return Response({"error": "product_images must be a list of UploadedFile (URLs or file paths)."},
-#                                 status=status.HTTP_400_BAD_REQUEST)
-
-#             # Create product instance
-#             product = Product_list.objects.create(
-#                 product_name=product_data.get('product_name', 'Default Name'),
-#                 product_images=[],  # Start empty
-#                 product_description=product_data.get('product_description', 'Default Description'),
-#                 product_discount=product_data.get('product_discount', '0%'),
-#                 product_offer=product_data.get('product_offer', 'No Offer'),
-#                 product_category=product_data.get('product_category', 'Miscellaneous'),
-#                 prize_range=[],  # Start empty
-#                 product_stock=product_data.get('product_stock', '0')
-#             )
-
-#             # Store up to 3 prize ranges
-#             for prize in prize_list[:3]:  
-#                 product.add_prize_range(prize)
-
-#             # Store up to 5 images
-#             for image in image_list[:5]:  
-#                 product.add_image(image)
-
-#             serializer = ProductListSerializer(product)
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-#         except ValidationError as e:
-#             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
 class ProductListPost(APIView):
     permission_classes = [AllowAny]
 
@@ -227,6 +174,58 @@ class ProductListPost(APIView):
         serializer = ProductListSerializer(products, many=True)
         return Response(serializer.data)
 
+    # def post(self, request):
+    #     product_data = request.data  
+
+    #     if not isinstance(product_data, dict):
+    #         return Response({"error": "Invalid format. Expected a dictionary."}, status=status.HTTP_400_BAD_REQUEST)
+
+    #     try:
+    #         # Extract product details
+    #         prize_list = product_data.get('prize_range', [])
+    #         image_list = request.FILES.getlist("product_images")   # Fix image handling
+
+    #         # Validate prize_list
+    #         if not isinstance(prize_list, list) or any(not isinstance(prize, dict) for prize in prize_list):
+    #             return Response({"error": "prize_range must be a list of dictionaries."}, status=status.HTTP_400_BAD_REQUEST)
+
+    #         # Validate image_list
+    #         if not image_list or any(not hasattr(img, 'read') for img in image_list):
+    #             return Response({"error": "product_images must be a list of image files."},
+    #                 status=status.HTTP_400_BAD_REQUEST)
+
+    #         # Create product instance
+    #         product = Product_list.objects.create(
+    #             product_name=product_data.get('product_name', 'Default Name'),
+    #             product_images=[],  # Empty initially
+    #             product_description=product_data.get('product_description', 'Default Description'),
+    #             product_discount=product_data.get('product_discount', '0%'),
+    #             product_offer=product_data.get('product_offer', 'No Offer'),
+    #             product_category=product_data.get('product_category', 'Miscellaneous'),
+    #             prize_range=[],
+    #             product_stock=product_data.get('product_stock', '0')
+    #         )
+
+    #         # Store up to 3 prize ranges
+    #         for prize in prize_list[:3]:
+    #             product.add_prize_range(prize)
+
+    #         # Store up to 5 images
+    #         image_urls = []
+    #         for image in image_list[:5]:
+    #             file_path = default_storage.save(f"product_images/{image.name}", ContentFile(image.read()))
+    #             image_urls.append(f"{settings.MEDIA_URL}{file_path}")
+
+    #         # Save images in JSONField
+    #         product.product_images = image_urls
+    #         product.save()
+
+    #         serializer = ProductListSerializer(product)
+    #         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    #     except ValidationError as e:
+    #         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     def post(self, request):
         product_data = request.data  
 
@@ -234,50 +233,49 @@ class ProductListPost(APIView):
             return Response({"error": "Invalid format. Expected a dictionary."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Extract product details
-            prize_list = product_data.get('prize_range', [])
-            image_list = request.FILES.getlist('product_images')  # Fix image handling
+            # Extract and validate product details
+            prize_list = product_data.get("prize_range", [])
+            image_list = request.FILES.getlist("product_images")  # Correct way to get multiple files
 
-            # Validate prize_list
             if not isinstance(prize_list, list) or any(not isinstance(prize, dict) for prize in prize_list):
                 return Response({"error": "prize_range must be a list of dictionaries."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Validate image_list
-            if not isinstance(image_list, list) or any(not hasattr(img, 'read') for img in image_list):
-                return Response({"error": "product_images must be a list of image files."},
-                                status=status.HTTP_400_BAD_REQUEST)
+            if not image_list or any(not hasattr(img, "read") for img in image_list):
+                return Response({"error": "product_images must be a list of image files."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Create product instance
+            # 🔹 Step 1: Upload images (Max 5) using Cloudinary
+            image_urls = []
+            for image in image_list[:5]:
+                try:
+                    upload_result = upload(image)
+                    image_urls.append(upload_result["secure_url"])  # Store Cloudinary URL
+                except Error as e:
+                    return Response({"error": f"Image upload failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # 🔹 Step 2: Create Product Instance
             product = Product_list.objects.create(
-                product_name=product_data.get('product_name', 'Default Name'),
-                product_images=[],  # Empty initially
-                product_description=product_data.get('product_description', 'Default Description'),
-                product_discount=product_data.get('product_discount', '0%'),
-                product_offer=product_data.get('product_offer', 'No Offer'),
-                product_category=product_data.get('product_category', 'Miscellaneous'),
-                prize_range=[],
-                product_stock=product_data.get('product_stock', '0')
+                product_name=product_data.get("product_name", "Default Name"),
+                product_images=image_urls,  # Store uploaded image URLs
+                product_description=product_data.get("product_description", "Default Description"),
+                product_discount=product_data.get("product_discount", "0%"),
+                product_offer=product_data.get("product_offer", "No Offer"),
+                product_category=product_data.get("product_category", "Miscellaneous"),
+                prize_range=[],  # Empty initially
+                product_stock=product_data.get("product_stock", "0")
             )
 
-            # Store up to 3 prize ranges
+            # 🔹 Step 3: Store up to 3 prize ranges
             for prize in prize_list[:3]:
                 product.add_prize_range(prize)
 
-            # Store up to 5 images
-            image_urls = []
-            for image in image_list[:5]:
-                file_path = default_storage.save(f"product_images/{image.name}", ContentFile(image.read()))
-                image_urls.append(f"{settings.MEDIA_URL}{file_path}")
-
-            # Save images in JSONField
-            product.product_images = image_urls
             product.save()
-
             serializer = ProductListSerializer(product)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
@@ -678,6 +676,9 @@ class Adding_cart(APIView):
                 # Fetch product details
                 product_obj = Product_list.objects.filter(id=p_id).first()
                 print("Fetched Product Object:", product_obj)
+
+                if product_obj is None:
+                    continue
 
                 # Get customer details and individual discount
                 invidual = Customer.objects.filter(id=user).first()
