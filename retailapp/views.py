@@ -861,6 +861,7 @@ class order_products(APIView):
                         {
                             "user_id": user,
                             "username":customer.username,
+                            "product_id":product_id,
                             "product_name": product_list.product_name,
                             "product_images": product_list.product_images
                             if product_list.product_images
@@ -1078,8 +1079,8 @@ class Total_orders_list(APIView):
                     {
                         'user_id':user_id,
                         'order_id':order_id,
-                        # "temp_address": products.get("total_amount"),
-                        "permanent_address": products.get('permanent_address'),
+                        "address": products.get('address'),
+                        "product_id":product_id,
                         "product_name": product_list.product_name,
                         "product_images": product_list.product_images
                         if product_list.product_images
