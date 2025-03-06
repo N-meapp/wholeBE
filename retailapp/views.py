@@ -377,8 +377,33 @@ class Product_updateanddelete(APIView):
         serializer = ProductListSerializer(item, partial=True)
 
         return Response({"message": "Product image updated successfully", "data": serializer.data}, status=200)
+    
+    def delete(self,request,id):
+        try:
+            product = Product_list.objects.get(id=id)
+        except Product_list.DoesNotExist:
+            return Response({'error':'the product not found'},status=400)
+        if product:
+            product.delete()
+            return Response({'message':'the product deleted '},status=200)
+            
 
-       
+class Product_add_extraimage(APIView):
+    permission_classes = [AllowAny]
+
+    def patch(self,request,id):
+        new_images = request.FILES.get("new_images")
+        print("the requested data is:",new_images)
+        try:
+            product_list = Product_list.objects.filter(id=id).first()
+        except Product_list.DoesNotExist:
+            return Response({'message':'no product found'},status=status.HTTP_404_NOT_FOUND)
+        if not isinstance(new_images,list):
+            return Response({'message':'new_images must be list'},status=400)
+        if len(product_list.product_images) < 5:
+            product_list.product_images.append(new_images)
+
+            
 
 
 # storing the search history
@@ -403,14 +428,9 @@ class Search_history(APIView):
 
             if not term:
                 return Response({"error": "Search term is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-         
             user.add_search_term(term)
             serializer = Register_custumerSerializer(user)
             print("the append data is",user)
-     
-
-
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
             return Response({'message': 'No active session found'}, status=status.HTTP_401_UNAUTHORIZED)
