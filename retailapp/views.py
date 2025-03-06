@@ -331,52 +331,74 @@ class Product_updateanddelete(APIView):
     permission_classes = [AllowAny]
 
     def get(self,request,id):
-        product = Product_list.objects.get(id = id)
-        serializer = ProductListSerializer(product)
-        return Response(serializer.data,status=200)
-
-    def patch(self, request, id):
         try:
-            item = Product_list.objects.get(id=id)
-        except Product_list.DoesNotExist:
+            product = Product_list.objects.get(id = id)
+            serializer = ProductListSerializer(product)
+            return Response(serializer.data,status=200)
+        except:
             return Response({"error": "Product not found"}, status=404)
 
-        #  Extracting only necessary fields instead of deep copying
-        item_no = request.data.get("item_no")
-        new_image = request.FILES.get("new_image")  # Files are in request.FILES
 
-        if item_no is None or new_image is None:
-            return Response({"error": "Both item_no and new_image are required"}, status=400)
+    def patch(self, request, id):
+            item = get_object_or_404(Product_list, id=id)
 
-        try:
-            item_no = int(item_no)
-        except (ValueError, TypeError):
-            return Response({"error": "item_no must be an integer"}, status=400)
+            # Extracting fields from request
+            item_no = request.data.get("item_number")
+            new_image = request.FILES.get("new_image")
+            index_no = request.data.get("index_number")
+            new_range = request.data.get("prize_range")
 
-        if not isinstance(item.product_images, list):
-            return Response({"error": "product_images is not a list"}, status=400)
+            # Validate item_no if provided
+            if item_no is not None:
+                try:
+                    item_no = int(item_no)
+                    if item_no < 0 or item_no >= len(item.product_images):
+                        return Response({"error": "item_no out of range"}, status=400)
+                except (ValueError, TypeError):
+                    return Response({"error": "item_no must be an integer"}, status=400)
 
-        if item_no < 0 or item_no >= len(item.product_images):
-            return Response({"error": "item_no out of range"}, status=400)
+            # Validate index_no if provided
+            if index_no is not None:
+                try:
+                    index_no = int(index_no)
+                    if index_no < 0 or index_no >= len(item.prize_range):
+                        return Response({"error": "index_no out of range"}, status=400)
+                except (ValueError, TypeError):
+                    return Response({"error": "index_no must be an integer"}, status=400)
 
-        #  Upload new image to Cloudinary
-        try:
-            cloudinary_response = cloudinary.uploader.upload(new_image)
-            cloudinary_url = cloudinary_response.get("secure_url")
+            # Update image if provided
+            if new_image and item_no is not None:
+                try:
+                    cloudinary_response = cloudinary.uploader.upload(new_image)
+                    cloudinary_url = cloudinary_response.get("secure_url")
 
-            if not cloudinary_url:
-                return Response({"error": "Failed to upload image to Cloudinary"}, status=500)
+                    if not cloudinary_url:
+                        return Response({"error": "Failed to upload image to Cloudinary"}, status=500)
 
-            #  Replace the image at the given index
-            item.product_images[item_no] = cloudinary_url
-            item.save()  # Save changes to the database
+                    # Replace the image at the given index
+                    item.product_images[item_no] = cloudinary_url
 
-        except Exception as e:
-            return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
+                except Exception as e:
+                    return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
 
-        serializer = ProductListSerializer(item, partial=True)
+            # Update prize_range if provided
+            if new_range is not None and index_no is not None:
+                item.prize_range[index_no] = new_range
 
-        return Response({"message": "Product image updated successfully", "data": serializer.data}, status=200)
+            # Update other fields dynamically
+            mutable_data = request.data.copy()
+            mutable_data.pop("item_number", None)
+            mutable_data.pop("new_image", None)
+            mutable_data.pop("index_number", None)
+            mutable_data.pop("prize_range", None)
+
+            serializer = ProductListSerializer(item, data=mutable_data, partial=True)
+
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"message": "Product updated successfully", "data": serializer.data}, status=200)
+            else:
+                return Response(serializer.errors, status=400)
     
     def delete(self,request,id):
         try:
@@ -388,22 +410,63 @@ class Product_updateanddelete(APIView):
             return Response({'message':'the product deleted '},status=200)
             
 
-class Product_add_extraimage(APIView):
+class ProductAddExtraImage(APIView):
     permission_classes = [AllowAny]
 
-    def patch(self,request,id):
-        new_images = request.FILES.get("new_images")
-        print("the requested data is:",new_images)
-        try:
-            product_list = Product_list.objects.filter(id=id).first()
-        except Product_list.DoesNotExist:
-            return Response({'message':'no product found'},status=status.HTTP_404_NOT_FOUND)
-        if not isinstance(new_images,list):
-            return Response({'message':'new_images must be list'},status=400)
-        if len(product_list.product_images) < 5:
-            product_list.product_images.append(new_images)
+    def patch(self, request, id):
+        new_images = request.FILES.get("new_images")  # Get multiple uploaded files
+        print("Received images:", new_images)
 
-            
+        product = Product_list.objects.filter(id=id).first()
+        if not product:
+            return Response({'message': 'No product found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not new_images:
+            return Response({'message': 'At least one new image is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(product.product_images, list):
+            product.product_images = []  # Ensure it's a list
+
+        uploaded_images = []
+        for image in new_images:
+            try:
+                cloudinary_response = cloudinary.uploader.upload(image)
+                cloudinary_url = cloudinary_response.get("secure_url")
+
+                if not cloudinary_url:
+                    return Response({"error": "Failed to upload image to Cloudinary"}, status=500)
+
+                uploaded_images.append(cloudinary_url)  # Store new Cloudinary URLs
+
+            except Exception as e:
+                return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
+
+        # Combine existing images with new images
+        updated_images = product.product_images + uploaded_images
+
+        # Keep only the first 5 images (remove extras)
+        if len(updated_images) > 5:
+            removed_images = updated_images[5:]  # Get images that are removed
+            updated_images = updated_images[:5]  # Keep only first 5
+
+            product.product_images = updated_images
+            product.save()
+
+            return Response({
+                'message': f'Images added successfully, but {len(removed_images)} extra images were discarded.',
+                'final_images': updated_images,
+                'removed_images': removed_images
+            }, status=status.HTTP_200_OK)
+
+        # Save updated images if under the limit
+        product.product_images = updated_images
+        product.save()
+
+        return Response({
+            'message': 'Images added successfully',
+            'final_images': updated_images
+        }, status=status.HTTP_200_OK)
+           
 
 
 # storing the search history

@@ -104,31 +104,6 @@ class Product_list(models.Model):
             raise ValidationError("Only 3 entries are allowed in prize_range.")
         self.save()
 
-    # def add_image(self, image):
-    #     if not isinstance(image, UploadedFile):
-    #         raise ValidationError("image must be a file.")
-    #     if not isinstance(self.product_images, list):
-    #         self.product_images = []
-
-    #     # Save the file and store its path  
-    #     file_path = default_storage.save(f"product_images/{image.name}", ContentFile(image.read()))
-    #     self.product_images.append(file_path)
-
-    #     if len(self.product_images) > 5:  # Limit to 5 images
-    #         raise ValidationError("Only 5 images are allowed in product_images.")
-    #     self.save()
-
-    # def add_extra_img(self, add_img):
-    #     if not isinstance(add_img, UploadedFile):
-    #         raise ValidationError("Search term must be a file.")
-    #     # Ensure search_history is a list
-    #     if add_img not in self.product_images:  # Check for duplicates
-    #         self.product_images.append(add_img)
-    #         if len(self.product_images) > 5:  # Limit to 5 terms
-    #             self.product_images.pop(5)
-    #     self.save()
-    
-
 
 class Cart_items(models.Model):
     user_id = models.CharField(max_length=10)
