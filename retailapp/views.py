@@ -439,7 +439,32 @@ class ProductAddExtraImage(APIView):
             'message': 'Images added successfully',
             'final_images': updated_images
         }, status=status.HTTP_200_OK)
-           
+    
+
+    def delete(self,request,id):
+        index= request.data.get("index")
+        if index:
+            index = int(index)
+            print("the index is:",index)
+        try:
+            product = Product_list.objects.get(id=id)
+            print("the product is:",product)
+            if product:
+                image_list = product.product_images
+                print("the image_list is:",image_list)
+                if isinstance(image_list, list) and 0 <= index < len(image_list):
+                    deleted_image  = image_list.pop(index)  # Get image at the specified index
+                    product.product_images = image_list  # Update the field
+                    product.save()  # Save changes to the database
+                    print("Deleted Image URL:", deleted_image)
+                    serializer = ProductListSerializer(product)
+                    return Response(serializer.data)
+                else:
+                    return Response({"error": "no image_list found"}, status=500)
+        except Exception as e:
+            return Response({"error": "no product found"}, status=500)
+        
+
 
 
 # storing the search history
