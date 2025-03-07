@@ -237,51 +237,43 @@ class ProductListPost(APIView):
             prize_list = product_data.get("prize_range", [])
             image_list = request.FILES.getlist("product_images")  # Correct way to get multiple files
 
-            # if not isinstance(prize_list, list) or any(not isinstance(prize, dict) for prize in prize_list):
-            #     return Response({"error": "prize_range must be a list of dictionaries."}, status=status.HTTP_400_BAD_REQUEST)
+            if prize_list or image_list is None:
+                return Response({"error": "prize_range or image_list required."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # if not image_list or any(not hasattr(img, "read") for img in image_list):
-            #     return Response({"error": "product_images must be a list of image files."}, status=status.HTTP_400_BAD_REQUEST)
+            image_urls = []
+            for image in image_list[:5]:
+                try:
+                    upload_result = upload(image)
+                    image_urls.append(upload_result["secure_url"])  # Store Cloudinary URL
+                except Error as e:
+                    return Response({"error": f"Image upload failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            #  Step 1: Upload images (Max 5) using Cloudinary
-            if image_list or prize_list:
-                image_urls = []
-                for image in image_list[:5]:
-                    try:
-                        upload_result = upload(image)
-                        image_urls.append(upload_result["secure_url"])  # Store Cloudinary URL
-                    except Error as e:
-                        return Response({"error": f"Image upload failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            #  Step 2: Create Product Instance
+            product = Product_list.objects.create(
+                product_name=product_data.get("product_name", "Default Name"),
+                product_images=image_urls,  # Store uploaded image URLs
+                product_description=product_data.get("product_description", "Default Description"),
+                product_discount=product_data.get("product_discount", "0%"),
+                product_offer=product_data.get("product_offer", "No Offer"),
+                product_category=product_data.get("product_category", "Miscellaneous"),
+                prize_range=[],  # Empty initially
+                product_stock=product_data.get("product_stock", "0")
+            )
 
-                #  Step 2: Create Product Instance
-                product = Product_list.objects.create(
-                    product_name=product_data.get("product_name", "Default Name"),
-                    product_images=image_urls,  # Store uploaded image URLs
-                    product_description=product_data.get("product_description", "Default Description"),
-                    product_discount=product_data.get("product_discount", "0%"),
-                    product_offer=product_data.get("product_offer", "No Offer"),
-                    product_category=product_data.get("product_category", "Miscellaneous"),
-                    prize_range=[],  # Empty initially
-                    product_stock=product_data.get("product_stock", "0")
-                )
+            #  Step 3: Store up to 3 prize ranges
+            for prize in prize_list[:3]:
+                if not isinstance(prize, dict):
+                    raise ValidationError("prize must be a dictionary with key-value pairs.")
+                product.prize_range.append(prize)
 
-                #  Step 3: Store up to 3 prize ranges
-                for prize in prize_list[:3]:
-                    if not isinstance(prize, dict):
-                        raise ValidationError("prize must be a dictionary with key-value pairs.")
-                    product.prize_range.append(prize)
+                if len(product.prize_range) > 3:  # Limit to 3 entries
+                    raise ValidationError("Only 3 entries are allowed in prize_range.")
+            product.save()
+            serializer = ProductListSerializer(product)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-                    if len(product.prize_range) > 3:  # Limit to 3 entries
-                        raise ValidationError("Only 3 entries are allowed in prize_range.")
-                product.save()
-                serializer = ProductListSerializer(product)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            else:
-                return Response({"error": "image_list or prize_list needed"},status=404)
         except ValidationError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({"error": f"Unexpected error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
