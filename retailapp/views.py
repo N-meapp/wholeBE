@@ -861,7 +861,7 @@ class order_products(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def get(self, request):
-        user = request.data.get('userid')
+        user = request.query_params.get('userid')
         print("The userid", user)
 
         if user is not None:
