@@ -146,3 +146,10 @@ class Enquiry(models.Model):
     user_id = models.CharField(max_length=20)
     product_id = models.CharField(max_length=10)
     message = models.TextField()
+
+
+class Slider_Add(models.Model):
+    slider_image = CloudinaryField('image', folder="sliderimages/",blank=True, null=True) 
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+
+

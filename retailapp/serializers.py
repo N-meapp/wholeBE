@@ -41,3 +41,8 @@ class EnquirySerializer(serializers.ModelSerializer):
     class Meta:
         model = Enquiry
         fields = '__all__'
+
+class Slider_Add_Serializer(serializers.ModelSerializer):
+    class Meta:
+        model = Slider_Add
+        fields = '__all__'

@@ -34,6 +34,9 @@ urlpatterns = [
     path('api/CancelOrder/', CancelOrder.as_view(), name='CancelOrder'),
     path('api/Enquiry_send/', Enquiry_send.as_view(), name='Enquiry_send'),
     path('api/Top_products/', Top_products.as_view(), name='Top_products'),
+    path('api/slider_Adds/', slider_Adds.as_view(), name='slider_Adds'),
+     path('api/slider_Adds/<int:id>/', slider_Adds.as_view(), name='slider_Adds-update'),
+
 ]
 
 

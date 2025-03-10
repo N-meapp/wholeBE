@@ -1329,4 +1329,61 @@ class Top_products(APIView):
                     })
         
         return Response(response_data)
-                
+
+class slider_Adds(APIView):
+    permission_classes = [AllowAny]
+    
+    def post(self, request,id=None):
+        image = request.FILES.get('image')  # Fix request.Files -> request.FILES
+        if not image:
+            return Response({'error': 'The image file is needed'}, status=400)
+
+        try:
+            upload_result = cloudinary.uploader.upload(image)
+            image_url = upload_result.get("secure_url")  # Get Cloudinary URL
+
+            # Save in the model
+            slider = Slider_Add.objects.create(slider_image=image_url)
+            return Response({'message': 'Image uploaded successfully', 'image_url': image_url}, status=201)
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+    def get(self,request,id=None):
+        try:
+            sliders = Slider_Add.objects.all()
+            serializer = Slider_Add_Serializer(sliders,many=True)
+            return Response(serializer.data,status=200)
+        except Exception as e:
+            return Response({'error': 'not found any item'}, status=500)
+
+    def patch(self, request, id):
+        slider_item = get_object_or_404(Slider_Add, id=id)  # Returns 404 if not found
+        new_image = request.FILES.get('new_image')
+
+        if not new_image:
+            return Response({'error': 'No new image provided'}, status=400)
+
+        try:
+            upload_result = cloudinary.uploader.upload(new_image)
+            image_url = upload_result.get("secure_url")
+
+            slider_item.slider_image = image_url
+            slider_item.save()  # Save updated image URL
+
+            # Serialize the updated object
+            serializer = Slider_Add_Serializer(slider_item)
+            return Response(serializer.data, status=200)
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+    
+    def delete(self,request,id):
+        slider_item = get_object_or_404(Slider_Add, id=id)
+        if slider_item:
+            slider_item.delete()
+            return Response({"message":"the item deleted succefully"},status=200)
+        
+        return Response({'error': 'No item check id'}, status=400)
+        
