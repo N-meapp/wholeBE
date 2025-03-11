@@ -318,7 +318,6 @@ class Product_updateanddelete(APIView):
             # Extracting fields from request
             item_no = request.data.get("item_number")
             new_image = request.FILES.get("new_image")
-            index_no = request.data.get("index_number")
             new_range = request.data.get("prize_range")
 
             # Validate item_no if provided
@@ -331,13 +330,7 @@ class Product_updateanddelete(APIView):
                     return Response({"error": "item_no must be an integer"}, status=400)
 
             # Validate index_no if provided
-            if index_no is not None:
-                try:
-                    index_no = int(index_no)
-                    if index_no < 0 or index_no >= len(item.prize_range):
-                        return Response({"error": "index_no out of range"}, status=400)
-                except (ValueError, TypeError):
-                    return Response({"error": "index_no must be an integer"}, status=400)
+
 
             # Update image if provided
             if new_image and item_no is not None:
@@ -355,14 +348,34 @@ class Product_updateanddelete(APIView):
                     return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
 
             # Update prize_range if provided
-            if new_range is not None and index_no is not None:
-                item.prize_range[index_no] = new_range
+            existing_prize_range = item.prize_range  # Get existing array
 
+            for entry in new_range:
+                index_no = entry.get("index_number")
+                index_no = int(index_no)
+
+                # If index exists, update that entry
+                if index_no is not None and 0 <= index_no < len(existing_prize_range):
+                    existing_prize_range[index_no].update({
+                        "from": entry["from"],
+                        "to": entry["to"],
+                        "prize": entry["prize"]
+                    })
+                else:
+                    # If index is out of range, add as new entry
+                    existing_prize_range.append({
+                        "from": entry["from"],
+                        "to": entry["to"],
+                        "prize": entry["prize"]
+                    })
+
+            # Save updated prize_range
+            item.prize_range = existing_prize_range
+            item.save()
             # Update other fields dynamically
             mutable_data = request.data.copy()
             mutable_data.pop("item_number", None)
             mutable_data.pop("new_image", None)
-            mutable_data.pop("index_number", None)
             mutable_data.pop("prize_range", None)
 
             serializer = ProductListSerializer(item, data=mutable_data, partial=True)
