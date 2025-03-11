@@ -220,8 +220,8 @@ class ProductListPost(APIView):
             if not isinstance(prize_list, list):
                 return Response({"error": "prize_range must be a list of dictionaries."}, status=status.HTTP_400_BAD_REQUEST)
 
-            if len(prize_list) > 3:
-                return Response({"error": "Only up to 3 prize ranges are allowed."}, status=status.HTTP_400_BAD_REQUEST)
+            # if len(prize_list) > 3:
+            #     return Response({"error": "Only up to 3 prize ranges are allowed."}, status=status.HTTP_400_BAD_REQUEST)
 
             for prize in prize_list:
                 if not isinstance(prize, dict):
@@ -329,7 +329,15 @@ class Product_updateanddelete(APIView):
                 except (ValueError, TypeError):
                     return Response({"error": "item_no must be an integer"}, status=400)
 
-            # Validate index_no if provided
+             # Validate index_no inside new_range
+            for entry in new_range:
+                if "index_number" in entry:
+                    try:
+                        entry["index_number"] = int(entry["index_number"])
+                        if entry["index_number"] < 0:
+                            return Response({"error": "index_number must be non-negative"}, status=400)
+                    except (ValueError, TypeError):
+                        return Response({"error": "index_number must be an integer"}, status=400)
 
 
             # Update image if provided
@@ -352,22 +360,23 @@ class Product_updateanddelete(APIView):
 
             for entry in new_range:
                 index_no = entry.get("index_number")
-                index_no = int(index_no)
 
-                # If index exists, update that entry
                 if index_no is not None and 0 <= index_no < len(existing_prize_range):
-                    existing_prize_range[index_no].update({
-                        "from": entry["from"],
-                        "to": entry["to"],
-                        "prize": entry["prize"]
-                    })
+                    # Get existing entry and update only provided fields
+                    existing_entry = existing_prize_range[index_no]
+
+                    existing_entry["from"] = entry.get("from")
+                    existing_entry["to"] = entry.get("to")
+                    existing_entry["prize"] = entry.get("prize")
+
                 else:
                     # If index is out of range, add as new entry
-                    existing_prize_range.append({
-                        "from": entry["from"],
-                        "to": entry["to"],
-                        "prize": entry["prize"]
-                    })
+                    new_entry = {
+                        "from": entry.get("from", ""),  # Default empty if not provided
+                        "to": entry.get("to", ""),
+                        "prize": entry.get("prize", "")
+                    }
+                    existing_prize_range.append(new_entry)
 
             # Save updated prize_range
             item.prize_range = existing_prize_range
@@ -733,9 +742,9 @@ class Adding_cart(APIView):
                     for prize in product_obj.prize_range:
                         start = int(prize.get('from', 0) or 0)
                         end = int(prize.get('to', 0) or 0)
-                        price = float(prize.get('price', 0) or 0)
+                        price = float(prize.get('prize', 0) or 0)
 
-                        print(f"Checking range: from {start} to {end}, price: {price}")
+                        print(f"Checking range: from {start} to {end}, prize: {price}")
 
                         if start <= product_count <= end:
                             discount_to_apply = product_discount if product_discount else 0
@@ -909,6 +918,7 @@ class order_products(APIView):
                             "order_status": products.get("order_status"),
                             "total_quantity": products.get("total_count"),
                             "total_amount": products.get("total_amount"),
+                            "product_description":product_list.product_description
                         }
                     )
 
