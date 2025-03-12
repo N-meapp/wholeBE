@@ -343,13 +343,13 @@ class Product_updateanddelete(APIView):
 
         # Validate index_no inside new_range
         for entry in new_range:
-            if "index_number" in entry:
+            if "id" in entry:
                 try:
-                    entry["index_number"] = int(entry["index_number"])
-                    if entry["index_number"] < 0:
-                        return Response({"error": "index_number must be non-negative"}, status=400)
+                    entry["id"] = int(entry["id"])
+                    if entry["id"] < 0:
+                        return Response({"error": "id must be non-negative"}, status=400)
                 except (ValueError, TypeError):
-                    return Response({"error": "index_number must be an integer"}, status=400)
+                    return Response({"error": "id must be an integer"}, status=400)
 
         # Update image if provided
         if new_image and item_no is not None:
@@ -370,7 +370,7 @@ class Product_updateanddelete(APIView):
         existing_prize_range = item.prize_range  # Get existing array
 
         for entry in new_range:
-            index_no = entry.get("index_number")
+            index_no = entry.get("id")
 
             if index_no is not None and 0 <= index_no < len(existing_prize_range):
                 # Get existing entry and update only provided fields
