@@ -420,12 +420,28 @@ class Product_updateanddelete(APIView):
             product.delete()
             return Response({'message':'the product deleted '},status=200)
 
-    def post(self,request,id):
+    def post(self, request, id):
         index = request.data.get('id')
+
         try:
             product = Product_list.objects.get(id=id)
-        except Exception as e:
-            return Response({'message':'the prize_range not found'},status=200)
+        except Product_list.DoesNotExist:
+            return Response({'message': 'The product was not found'}, status=404)
+
+        # Convert index to integer for comparison
+        try:
+            index = int(index)
+        except (ValueError, TypeError):
+            return Response({'message': 'Invalid ID format'}, status=400)
+
+        # Remove the entry with matching id
+        updated_prize_range = [prize for prize in product.prize_range if int(prize.get('id', -1)) != index]
+
+        # Update the product with the new prize_range
+        product.prize_range = updated_prize_range
+        product.save()
+        return Response({'message': 'Prize entry deleted successfully', 'updated_prize_range': product.data}, status=200)
+
 
                
 
@@ -983,6 +999,7 @@ class order_products(APIView):
                         "product_category": product_list.product_category,
                         "product_stock": product_list.product_stock,
                         "product_description": product_list.product_description,
+                        "total_amount":product.get("total_amount")
                     }
                 )
 
