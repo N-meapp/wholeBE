@@ -141,18 +141,37 @@ class ProductCategoryView(APIView):
     
 class Product_categoryUpdate(APIView):
     permission_classes = [AllowAny]
-    def patch(self,request,id):
+    def patch(self, request, id):
+        image = request.FILES.get("image")
+
+        # Check if category exists
         try:
             category = Product_Category.objects.get(id=id)
         except Product_Category.DoesNotExist:
-            return Response({"message: no Product_Category found"})
-        serializer = ProductCategorySerializer(category,data=request.data,partial=True)
+            return Response({"message": "No Product_Category found"}, status=404)
+
+        # Upload new image if provided
+        cloudinary_url = None
+        if image:
+            try:
+                cloudinary_response = cloudinary.uploader.upload(image)
+                cloudinary_url = cloudinary_response.get("secure_url")
+            except Exception as e:
+                return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
+
+        # Prepare serializer data
+        updated_data = request.data.copy()
+        if cloudinary_url:
+            updated_data["image"] = cloudinary_url  # Update image field in data
+
+        serializer = ProductCategorySerializer(category, data=updated_data, partial=True)
+
         if serializer.is_valid():
             serializer.save()
-            print("the saved data is",serializer)
-            return Response(serializer.data, status=201)
+            return Response({"message": "Product category updated successfully", "data": serializer.data}, status=200)
         else:
             return Response(serializer.errors, status=400)
+
         
     def delete(self,request,id):
         try:
