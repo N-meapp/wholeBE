@@ -357,7 +357,7 @@ class Product_updateanddelete(APIView):
                 existing_entry = existing_prize_dict[entry_id]
                 existing_entry["from"] = entry.get("from", existing_entry.get("from", ""))
                 existing_entry["to"] = entry.get("to", existing_entry.get("to", ""))
-                existing_entry["prize"] = entry.get("rate", existing_entry.get("prize", ""))
+                existing_entry["prize"] = entry.get("prize", existing_entry.get("prize", ""))
             else:
                 
                 # Add new entry to the list
@@ -365,7 +365,7 @@ class Product_updateanddelete(APIView):
                     "id": entry.get("id", ""),
                     "from": entry.get("from", ""),
                     "to": entry.get("to", ""),
-                    "prize": entry.get("rate", ""),
+                    "prize": entry.get("prize", ""),
                 }
                 existing_prize_range.append(new_entry)
 
@@ -420,8 +420,13 @@ class Product_updateanddelete(APIView):
             product.delete()
             return Response({'message':'the product deleted '},status=200)
 
-    def post(self,request):
-        index = request.data.get('id')
+    # def post(self,request,id):
+    #     index = request.data.get('id')
+    #     try:
+    #         product = Product_list.objects.get(id=id)
+    #     except Exception as e:
+    #         return Response({'message':'the prize_range not found'},status=200)
+
                
 
 class ProductAddExtraImage(APIView):
@@ -1171,32 +1176,34 @@ class Total_orders_list(APIView):
         order_products = []
         final_list = []
         for orders in order_list:
-            orderd_list = {
-                "userid":orders.product_items.user_id,
-                "address": orders.product_items.get("address"),
-                "order_id": orders.product_items.get("order_id"),
-                "date": orders.product_items.get("date"),
-                "final_amount": orders.product_items.get("final_amount"),
-            }
-            for products in orders.product_items.get("products", []):
-                product_id = products.get('product_id')
-                product_list = Product_list.objects.filter(id=product_id).first()
-                if not product_list:
-                    print(f"Skipping product with ID {product_id} (Not Found)")
-                    continue  
-                order_products.append(
-                    {
-                        "product_id":product_id,
-                        "product_name": product_list.product_name,
-                        "product_images": product_list.product_images
-                        if product_list.product_images
-                        else None,
-                        "product_category": product_list.product_category,
-                        "product_stock": product_list.product_stock,
-                        "order_status": products.get("order_status"),
-                        "total_amount": products.get("total_amount"),
-                    }
-                )
+            userid = orders.user_id
+            for data in orders.product_items:
+                orderd_list = {
+                    "userid":userid,
+                    "address": data.get("address"),
+                    "order_id": data.get("order_id"),
+                    "date": data.get("date"),
+                    "final_amount": data.get("final_amount"),
+                }
+                for products in data.get("products", []):
+                    product_id = products.get('product_id')
+                    product_list = Product_list.objects.filter(id=product_id).first()
+                    if not product_list:
+                        print(f"Skipping product with ID {product_id} (Not Found)")
+                        continue  
+                    order_products.append(
+                        {
+                            "product_id":product_id,
+                            "product_name": product_list.product_name,
+                            "product_images": product_list.product_images
+                            if product_list.product_images
+                            else None,
+                            "product_category": product_list.product_category,
+                            "product_stock": product_list.product_stock,
+                            "order_status": products.get("order_status"),
+                            "total_amount": products.get("total_amount"),
+                        }
+                    )
             final_list.append(
                 {
                     "orderd_list":orderd_list,
