@@ -907,17 +907,9 @@ class order_products(APIView):
 
 
         # Validate data
-        if user_id is None or not isinstance(orders, list) :
-            return Response({"error": "Invalid data format (user_id missing or orders is not a list)"}, status=400)
+        if user_id is None or not isinstance(orders, dict) :
+            return Response({"error": "Invalid data format (user_id missing or orders is not a dict)"}, status=400)
 
-        # Check if cart already exists for the user
-        # order_products= Order_products.objects.filter(user_id=user_id).first()
-
-        # if order_products:
-        #     # Update existing cart
-        #     order_products.order_add(products)
-        #     serializer = OrderSerializer(order_products)
-        # else:
         # Create new cart entry
         order_products = Order_products.objects.create(user_id=user_id, product_items=orders)
         serializer = OrderSerializer(order_products)
