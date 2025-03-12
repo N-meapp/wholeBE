@@ -321,89 +321,95 @@ class Product_updateanddelete(APIView):
 
 
     def patch(self, request, id):
-            item = get_object_or_404(Product_list, id=id)
+        item = get_object_or_404(Product_list, id=id)
 
-            # Extracting fields from request
-            item_no = request.data.get("item_number")
-            new_image = request.FILES.get("new_image")
-            new_range = request.data.get("prize_range")
+        # Extract fields from request
+        item_no = request.data.get("item_number")
+        new_image = request.FILES.get("new_image")
+        new_range = request.data.get("prize_range", [])  # Default to empty list
 
-            # Validate item_no if provided
-            if item_no is not None:
+        # Ensure new_range is a list
+        if not isinstance(new_range, list):
+            return Response({"error": "prize_range must be a list"}, status=400)
+
+        # Validate item_no if provided
+        if item_no is not None:
+            try:
+                item_no = int(item_no)
+                if item_no < 0 or item_no >= len(item.product_images):
+                    return Response({"error": "item_no out of range"}, status=400)
+            except (ValueError, TypeError):
+                return Response({"error": "item_no must be an integer"}, status=400)
+
+        # Validate index_no inside new_range
+        for entry in new_range:
+            if "index_number" in entry:
                 try:
-                    item_no = int(item_no)
-                    if item_no < 0 or item_no >= len(item.product_images):
-                        return Response({"error": "item_no out of range"}, status=400)
+                    entry["index_number"] = int(entry["index_number"])
+                    if entry["index_number"] < 0:
+                        return Response({"error": "index_number must be non-negative"}, status=400)
                 except (ValueError, TypeError):
-                    return Response({"error": "item_no must be an integer"}, status=400)
+                    return Response({"error": "index_number must be an integer"}, status=400)
 
-             # Validate index_no inside new_range
-            if new_range is not None:
-                for entry in new_range:
-                    if "index_number" in entry:
-                        try:
-                            entry["index_number"] = int(entry["index_number"])
-                            if entry["index_number"] < 0:
-                                return Response({"error": "index_number must be non-negative"}, status=400)
-                        except (ValueError, TypeError):
-                            return Response({"error": "index_number must be an integer"}, status=400)
+        # Update image if provided
+        if new_image and item_no is not None:
+            try:
+                cloudinary_response = cloudinary.uploader.upload(new_image)
+                cloudinary_url = cloudinary_response.get("secure_url")
 
+                if not cloudinary_url:
+                    return Response({"error": "Failed to upload image to Cloudinary"}, status=500)
 
-            # Update image if provided
-            if new_image and item_no is not None:
-                try:
-                    cloudinary_response = cloudinary.uploader.upload(new_image)
-                    cloudinary_url = cloudinary_response.get("secure_url")
+                # Replace the image at the given index
+                item.product_images[item_no] = cloudinary_url
 
-                    if not cloudinary_url:
-                        return Response({"error": "Failed to upload image to Cloudinary"}, status=500)
+            except Exception as e:
+                return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
 
-                    # Replace the image at the given index
-                    item.product_images[item_no] = cloudinary_url
+        # Update prize_range if provided
+        existing_prize_range = item.prize_range  # Get existing array
 
-                except Exception as e:
-                    return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
+        for entry in new_range:
+            index_no = entry.get("index_number")
 
-            # Update prize_range if provided
-            existing_prize_range = item.prize_range  # Get existing array
+            if index_no is not None and 0 <= index_no < len(existing_prize_range):
+                # Get existing entry and update only provided fields
+                existing_entry = existing_prize_range[index_no]
 
-            for entry in new_range:
-                index_no = entry.get("index_number")
+                existing_entry["from"] = entry.get("from", existing_entry["from"])
+                existing_entry["to"] = entry.get("to", existing_entry["to"])
+                existing_entry["prize"] = entry.get("prize", existing_entry["prize"])
 
-                if index_no is not None and 0 <= index_no < len(existing_prize_range):
-                    # Get existing entry and update only provided fields
-                    existing_entry = existing_prize_range[index_no]
-
-                    existing_entry["from"] = entry.get("from")
-                    existing_entry["to"] = entry.get("to")
-                    existing_entry["prize"] = entry.get("prize")
-
-                else:
-                    # If index is out of range, add as new entry
-                    new_entry = {
-                        "from": entry.get("from", ""),  # Default empty if not provided
-                        "to": entry.get("to", ""),
-                        "prize": entry.get("prize", "")
-                    }
-                    existing_prize_range.append(new_entry)
-
-            # Save updated prize_range
-            item.prize_range = existing_prize_range
-            item.save()
-            # Update other fields dynamically
-            mutable_data = request.data.copy()
-            mutable_data.pop("item_number", None)
-            mutable_data.pop("new_image", None)
-            mutable_data.pop("prize_range", None)
-
-            serializer = ProductListSerializer(item, data=mutable_data, partial=True)
-
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"message": "Product updated successfully", "data": serializer.data}, status=200)
             else:
-                return Response(serializer.errors, status=400)
-    
+                # If index is out of range, add as new entry
+                new_entry = {
+                    "from": entry.get("from", ""),
+                    "to": entry.get("to", ""),
+                    "prize": entry.get("prize", ""),
+                    "id": entry.get("id", ""),
+                }
+                existing_prize_range.append(new_entry)
+
+        # Save updated prize_range
+        item.prize_range = existing_prize_range
+        item.save()
+
+        # Update other fields dynamically
+        mutable_data = request.data.copy()
+        mutable_data.pop("item_number", None)
+        mutable_data.pop("new_image", None)
+        mutable_data.pop("prize_range", None)
+
+        serializer = ProductListSerializer(item, data=mutable_data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Product updated successfully", "data": serializer.data}, status=200)
+        else:
+            return Response(serializer.errors, status=400)
+
+
+        
     def delete(self,request,id):
         try:
             product = Product_list.objects.get(id=id)
@@ -412,7 +418,7 @@ class Product_updateanddelete(APIView):
         if product:
             product.delete()
             return Response({'message':'the product deleted '},status=200)
-            
+                
 
 class ProductAddExtraImage(APIView):
     permission_classes = [AllowAny]
@@ -470,7 +476,7 @@ class ProductAddExtraImage(APIView):
             'message': 'Images added successfully',
             'final_images': updated_images
         }, status=status.HTTP_200_OK)
-    
+        
 
     def delete(self,request,id):
         index= request.data.get("index")
