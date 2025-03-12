@@ -320,30 +320,37 @@ class Product_updateanddelete(APIView):
             return Response({"error": "Product not found"}, status=404)
 
 
+
     def patch(self, request, id):
         item = get_object_or_404(Product_list, id=id)
 
-        # Extract prize_range from request
-        new_range = request.data.get("prize_range", [])
+        # Extract fields from request
+        item_no = request.data.get("item_number")
+        new_image = request.FILES.get("new_image")
+        new_range = request.data.get("prize_range", [])  # Default to empty list
 
-        # Ensure new_range is a list
-        if isinstance(new_range, str):  # Handle JSON string input
+        # Ensure new_range is properly formatted (list or JSON string)
+        if isinstance(new_range, str):
             try:
-                new_range = json.loads(new_range)
+                new_range = json.loads(new_range)  # Convert JSON string to list
             except json.JSONDecodeError:
-                return Response({"error": "Invalid JSON format for prize_range."}, status=400)
+                return Response(
+                    {"error": "Invalid JSON format for prize_range."}, 
+                    status=400
+                )
 
         if not isinstance(new_range, list):
             return Response({"error": "prize_range must be a list."}, status=400)
 
-        # Ensure existing prize range is always a list
+        # Ensure existing prize_range is a list
         existing_prize_range = item.prize_range if isinstance(item.prize_range, list) else []
 
-        # Convert existing prize range into a dictionary for quick lookup by id
+        # Convert existing prize range into a dictionary (id -> entry) for fast lookups
         existing_prize_dict = {str(entry.get("id")): entry for entry in existing_prize_range if "id" in entry}
 
+        # Validate and process new_range updates
         for entry in new_range:
-            entry_id = str(entry.get("id"))  # Ensure id is treated as a string for consistency
+            entry_id = str(entry.get("id")) if entry.get("id") is not None else None
 
             if entry_id and entry_id in existing_prize_dict:
                 # Update existing entry
@@ -352,9 +359,10 @@ class Product_updateanddelete(APIView):
                 existing_entry["to"] = entry.get("to", existing_entry.get("to", ""))
                 existing_entry["prize"] = entry.get("prize", existing_entry.get("prize", ""))
             else:
-                # Add new entry if the ID does not exist
+                
+                # Add new entry to the list
                 new_entry = {
-                    "id": entry.get("id", ""),  # Keep ID as provided
+                    "id": entry.get("id", ""),
                     "from": entry.get("from", ""),
                     "to": entry.get("to", ""),
                     "prize": entry.get("prize", ""),
@@ -365,7 +373,43 @@ class Product_updateanddelete(APIView):
         item.prize_range = existing_prize_range
         item.save()
 
-        return Response({"message": "Prize range updated successfully", "prize_range": item.prize_range}, status=200)
+        # Update image if provided
+        if new_image is not None and item_no is not None:
+            try:
+                item_no = int(item_no)
+                if item_no < 0 or item_no >= len(item.product_images):
+                    return Response({"error": "item_no out of range"}, status=400)
+
+                cloudinary_response = cloudinary.uploader.upload(new_image)
+                cloudinary_url = cloudinary_response.get("secure_url")
+
+                if not cloudinary_url:
+                    return Response({"error": "Failed to upload image to Cloudinary"}, status=500)
+
+                # Replace image at the given index
+                item.product_images[item_no] = cloudinary_url
+
+            except (ValueError, TypeError):
+                return Response({"error": "item_no must be an integer"}, status=400)
+            except Exception as e:
+                return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
+
+        # Dynamically update other fields in the request
+        mutable_data = request.data.copy()
+        mutable_data.pop("item_number", None)
+        mutable_data.pop("new_image", None)
+        mutable_data.pop("prize_range", None)
+
+        serializer = ProductListSerializer(item, data=mutable_data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Product updated successfully", "data": serializer.data}, status=200)
+        else:
+            return Response(serializer.errors, status=400)
+
+            
+
         
     def delete(self,request,id):
         try:
