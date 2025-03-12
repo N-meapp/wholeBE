@@ -226,14 +226,14 @@ class ProductListPost(APIView):
             for prize in prize_list:
                 if not isinstance(prize, dict):
                     return Response({"error": "Each entry in prize_range must be a dictionary."}, status=status.HTTP_400_BAD_REQUEST)
-                new_entry = {
-                        "from": prize.get("from", ""),  # Default empty if not provided
-                        "to": prize.get("to", ""),
-                        "prize": prize.get("prize", ""),
-                        "id": prize.get(id, "")
+                # new_entry = {
+                #         "from": prize.get("from", ""),  # Default empty if not provided
+                #         "to": prize.get("to", ""),
+                #         "prize": prize.get("prize", ""),
+                #         "id": prize.get(id, "")
 
-                    }
-                prize_list.append(new_entry)
+                #     }
+                # prize_list.append(new_entry)
 
         else:
             prize_list = []  # If prize_range is not provided, set it to an empty list
@@ -338,14 +338,15 @@ class Product_updateanddelete(APIView):
                     return Response({"error": "item_no must be an integer"}, status=400)
 
              # Validate index_no inside new_range
-            for entry in new_range:
-                if "index_number" in entry:
-                    try:
-                        entry["index_number"] = int(entry["index_number"])
-                        if entry["index_number"] < 0:
-                            return Response({"error": "index_number must be non-negative"}, status=400)
-                    except (ValueError, TypeError):
-                        return Response({"error": "index_number must be an integer"}, status=400)
+            if new_range is not None:
+                for entry in new_range:
+                    if "index_number" in entry:
+                        try:
+                            entry["index_number"] = int(entry["index_number"])
+                            if entry["index_number"] < 0:
+                                return Response({"error": "index_number must be non-negative"}, status=400)
+                        except (ValueError, TypeError):
+                            return Response({"error": "index_number must be an integer"}, status=400)
 
 
             # Update image if provided
@@ -889,60 +890,96 @@ class order_products(APIView):
         serializer = OrderSerializer(order_products)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
+
+
     def get(self, request):
         user = request.query_params.get('userid')
-        print("The userid", user)
+        print("The userid:", user)
 
-        if user is not None:
-            order_list = []
-            customer = Customer.objects.filter(id=user).first()
-
-            if not customer:
-                return Response({"error": "No User found"}, status=404)
-
-            check_order = Order_products.objects.filter(user_id=user)
-            print("The order items with user:", check_order)
-
-            if check_order:
-                for order in check_order:
-                    for products in order.product_items:  # Ensure this is a list
-                        for product_id in products["products"]:  # Access the list of products correctly
-                            product_id = product_id.get("product_id")  # Extract product_id safely
-                            print("The product ID is:", product_id)
-
-                            # Fetch product details
-                            product_list = Product_list.objects.filter(id=product_id).first()
-                            if not product_list:
-                                print(f"Skipping product with ID {product_id} (Not Found)")
-                                continue  
-
-                            order_list.append(
-                                {
-                                    "user_id": user,
-                                    "username": customer.username,
-                                    "product_id": product_id,
-                                    "product_name": product_list.product_name,
-                                    "product_images": product_list.product_images if product_list.product_images else None,
-                                    "product_category": product_list.product_category,
-                                    "product_stock": product_list.product_stock,
-                                    "order_status": products.get("order_status"),
-                                    "total_quantity": pid.get("count"),  # Corrected key
-                                    "total_amount": pid.get("total_amount"),  # Corrected key
-                                    "product_description": product_list.product_description,
-                                }
-                            )
-
-                if not order_list:
-                    return Response({"error": "No products found in order_list"}, status=404)
-
-                return Response(order_list)
-
-            else:
-                return Response({"error": "No product found for this user"}, status=404)
-
-        else:
+        if not user:
             return Response({"error": "No User found"}, status=400)
 
+        final_list = []
+        customer = Customer.objects.filter(id=user).first()
+
+        if not customer:
+            return Response({"error": "No User found"}, status=404)
+
+        check_order = Order_products.objects.filter(user_id=user)
+        print("The order items with user:", check_order)
+
+        if not check_order.exists():
+            return Response({"error": "No product found for this user"}, status=404)
+
+        for order in check_order:
+            try:
+                print(f"Raw order data for order {order.id}: {order.product_items}")  # Debugging
+
+                order_data = order.product_items  # Get JSONField
+
+                # If it's None, skip this order
+                if order_data is None:
+                    print(f"Skipping order {order.id}, product_items is None")
+                    continue  
+
+                # If it's a string, convert it to JSON
+                if isinstance(order_data, str):
+                    order_data = json.loads(order_data)
+
+                # If it's a list, take the first item (assuming each order should be a dict)
+                if isinstance(order_data, list):
+                    if len(order_data) == 0:
+                        print(f"Skipping order {order.id}, empty list in product_items")
+                        continue
+                    order_data = order_data[0]  # Take the first dictionary in the list
+
+                if not isinstance(order_data, dict):  # Ensure it's a dictionary
+                    raise ValueError(f"Expected a dictionary, got {type(order_data)}")
+
+            except (json.JSONDecodeError, ValueError, AttributeError) as e:
+                print(f"Error decoding order data for order {order.id}: {e}")
+                return Response({"error": "Invalid order data"}, status=500)
+
+            # Prepare order details
+            order_list = {
+                "userid": user,
+                "address": order_data.get("address"),
+                "order_id": order_data.get("order_id"),
+                "date": order_data.get("date"),
+                "final_amount": order_data.get("final_amount"),
+            }
+
+            product_data = []
+            for product in order_data.get("products", []):  # Ensure products key exists
+                product_id = product.get("product_id")
+                print("The product ID is:", product_id)
+
+                # Fetch product details
+                product_list = Product_list.objects.filter(id=product_id).first()
+                if not product_list:
+                    print(f"Skipping product with ID {product_id} (Not Found)")
+                    continue  
+
+                product_data.append(
+                    {
+                        "product_id": product_id,
+                        "product_name": product_list.product_name,
+                        "product_images": product_list.product_images if product_list.product_images else None,
+                        "product_category": product_list.product_category,
+                        "product_stock": product_list.product_stock,
+                        "product_description": product_list.product_description,
+                    }
+                )
+
+            final_list.append({
+                "order_list": order_list,
+                "product_data": product_data,
+            })
+
+        if not final_list:
+            return Response({"error": "No orders found"}, status=404)
+
+        return Response(final_list)
 
 
 
