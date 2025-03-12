@@ -357,7 +357,7 @@ class Product_updateanddelete(APIView):
                 existing_entry = existing_prize_dict[entry_id]
                 existing_entry["from"] = entry.get("from", existing_entry.get("from", ""))
                 existing_entry["to"] = entry.get("to", existing_entry.get("to", ""))
-                existing_entry["prize"] = entry.get("prize", existing_entry.get("prize", ""))
+                existing_entry["rate"] = entry.get("rate", existing_entry.get("rate", ""))
             else:
                 
                 # Add new entry to the list
@@ -365,7 +365,7 @@ class Product_updateanddelete(APIView):
                     "id": entry.get("id", ""),
                     "from": entry.get("from", ""),
                     "to": entry.get("to", ""),
-                    "prize": entry.get("prize", ""),
+                    "rate": entry.get("rate", ""),
                 }
                 existing_prize_range.append(new_entry)
 
@@ -420,12 +420,12 @@ class Product_updateanddelete(APIView):
             product.delete()
             return Response({'message':'the product deleted '},status=200)
 
-    # def post(self,request,id):
-    #     index = request.data.get('id')
-    #     try:
-    #         product = Product_list.objects.get(id=id)
-    #     except Exception as e:
-    #         return Response({'message':'the prize_range not found'},status=200)
+    def post(self,request,id):
+        index = request.data.get('id')
+        try:
+            product = Product_list.objects.get(id=id)
+        except Exception as e:
+            return Response({'message':'the prize_range not found'},status=200)
 
                
 
