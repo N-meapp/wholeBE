@@ -882,6 +882,8 @@ class Count_order_update(APIView):
 
 
 class Delete_all_cart(APIView):
+    permission_classes = [AllowAny]
+
     def post(self,request):
         user = request.data.get('username')
         cart_items = Cart_items.objects.filter(user_id = user)
