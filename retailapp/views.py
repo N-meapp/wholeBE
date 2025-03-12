@@ -1168,50 +1168,72 @@ class Update_customer_status(APIView):
 class Total_orders_list(APIView):
     permission_classes = [AllowAny]
 
-    def get(self,request):
-        
+    def get(self, request):
         order_list = Order_products.objects.all()
+        
         if not order_list:
-            return Response({"error": "No order_list found"})
-        order_products = []
+            return Response({"error": "No orders found"}, status=404)
+
         final_list = []
-        for orders in order_list:
-            userid = orders.user_id
-            for data in orders.product_items:
+
+        # Fetch all product details once and store them in a dictionary for quick lookup
+        product_ids = set()
+        for order in order_list:
+            for data in order.product_items:
+                for product in data.get("products", []):
+                    product_ids.add(product.get("product_id"))
+
+        product_dict = {
+            str(product.id): {
+                "product_name": product.product_name,
+                "product_images": product.product_images if product.product_images else None,
+                "product_category": product.product_category,
+                "product_stock": product.product_stock,
+            }
+            for product in Product_list.objects.filter(id__in=product_ids)
+        }
+
+        # Process each order
+        for order in order_list:
+            userid = order.user_id
+
+            for data in order.product_items:
                 orderd_list = {
-                    "userid":userid,
+                    "userid": userid,
                     "address": data.get("address"),
                     "order_id": data.get("order_id"),
                     "date": data.get("date"),
                     "final_amount": data.get("final_amount"),
                 }
-                for products in data.get("products", []):
-                    product_id = products.get('product_id')
-                    product_list = Product_list.objects.filter(id=product_id).first()
-                    if not product_list:
-                        print(f"Skipping product with ID {product_id} (Not Found)")
-                        continue  
-                    order_products.append(
-                        {
-                            "product_id":product_id,
-                            "product_name": product_list.product_name,
-                            "product_images": product_list.product_images
-                            if product_list.product_images
-                            else None,
-                            "product_category": product_list.product_category,
-                            "product_stock": product_list.product_stock,
-                            "order_status": products.get("order_status"),
-                            "total_amount": products.get("total_amount"),
-                        }
-                    )
-            final_list.append(
-                {
-                    "orderd_list":orderd_list,
-                    "order_products":order_products
-                }
-            )
 
-        return Response(final_list,status=200)
+                order_products = []
+
+                for product in data.get("products", []):
+                    product_id = str(product.get("product_id"))
+                    product_details = product_dict.get(product_id)
+
+                    if product_details:  # If product exists in the dictionary
+                        order_products.append(
+                            {
+                                "product_id": product_id,
+                                "product_name": product_details["product_name"],
+                                "product_images": product_details["product_images"],
+                                "product_category": product_details["product_category"],
+                                "product_stock": product_details["product_stock"],
+                                "order_status": product.get("order_status"),
+                                "total_amount": product.get("total_amount"),
+                            }
+                        )
+
+                final_list.append(
+                    {
+                        "order_details": orderd_list,
+                        "order_products": order_products,
+                    }
+                )
+
+        return Response(final_list, status=200)
+
             
 
 class Search_all_products(APIView):
