@@ -229,7 +229,9 @@ class ProductListPost(APIView):
                 new_entry = {
                         "from": prize.get("from", ""),  # Default empty if not provided
                         "to": prize.get("to", ""),
-                        "prize": prize.get("prize", "")
+                        "prize": prize.get("prize", ""),
+                        "id": prize.get(id, "")
+
                     }
                 prize_list.append(new_entry)
 
