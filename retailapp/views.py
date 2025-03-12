@@ -329,6 +329,12 @@ class Product_updateanddelete(APIView):
         new_range = request.data.get("prize_range", [])  # Default to empty list
 
         # Ensure new_range is a list
+        if isinstance(new_range, str):  # In case prize_range is a stringified JSON
+                try:
+                    new_range = json.loads(new_range)  # Deserialize stringified JSON
+                except json.JSONDecodeError:
+                    return Response({"error": "Invalid format for prize_range. It should be a valid JSON array."}, status=status.HTTP_400_BAD_REQUEST)
+                
         if not isinstance(new_range, list):
             return Response({"error": "prize_range must be a list"}, status=400)
 
