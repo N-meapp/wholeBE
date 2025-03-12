@@ -323,76 +323,41 @@ class Product_updateanddelete(APIView):
     def patch(self, request, id):
         item = get_object_or_404(Product_list, id=id)
 
-        # Extract fields from request
-        item_no = request.data.get("item_number")
-        new_image = request.FILES.get("new_image")
-        new_range = request.data.get("prize_range", [])  # Default to empty list
+        # Extract prize_range from request
+        new_range = request.data.get("prize_range", [])
 
         # Ensure new_range is a list
-        if isinstance(new_range, str):  # In case prize_range is a stringified JSON
-                try:
-                    new_range = json.loads(new_range)  # Deserialize stringified JSON
-                except json.JSONDecodeError:
-                    return Response({"error": "Invalid format for prize_range. It should be a valid JSON array."}, status=status.HTTP_400_BAD_REQUEST)
-                
+        if isinstance(new_range, str):  # Handle JSON string input
+            try:
+                new_range = json.loads(new_range)
+            except json.JSONDecodeError:
+                return Response({"error": "Invalid JSON format for prize_range."}, status=400)
+
         if not isinstance(new_range, list):
-            return Response({"error": "prize_range must be a list"}, status=400)
+            return Response({"error": "prize_range must be a list."}, status=400)
 
-        # Validate item_no if provided
-        if item_no is not None:
-            try:
-                item_no = int(item_no)
-                if item_no < 0 or item_no >= len(item.product_images):
-                    return Response({"error": "item_no out of range"}, status=400)
-            except (ValueError, TypeError):
-                return Response({"error": "item_no must be an integer"}, status=400)
+        # Ensure existing prize range is always a list
+        existing_prize_range = item.prize_range if isinstance(item.prize_range, list) else []
 
-        # Validate index_no inside new_range
-        for entry in new_range:
-            if "id" in entry:
-                try:
-                    entry["id"] = int(entry["id"])
-                    if entry["id"] < 0:
-                        return Response({"error": "id must be non-negative"}, status=400)
-                except (ValueError, TypeError):
-                    return Response({"error": "id must be an integer"}, status=400)
-
-        # Update image if provided
-        if new_image and item_no is not None:
-            try:
-                cloudinary_response = cloudinary.uploader.upload(new_image)
-                cloudinary_url = cloudinary_response.get("secure_url")
-
-                if not cloudinary_url:
-                    return Response({"error": "Failed to upload image to Cloudinary"}, status=500)
-
-                # Replace the image at the given index
-                item.product_images[item_no] = cloudinary_url
-
-            except Exception as e:
-                return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
-
-        # Update prize_range if provided
-        existing_prize_range = item.prize_range  # Get existing array
+        # Convert existing prize range into a dictionary for quick lookup by id
+        existing_prize_dict = {str(entry.get("id")): entry for entry in existing_prize_range if "id" in entry}
 
         for entry in new_range:
-            index_no = entry.get("id")
+            entry_id = str(entry.get("id"))  # Ensure id is treated as a string for consistency
 
-            if index_no is not None:
-                # Get existing entry and update only provided fields
-                existing_entry = existing_prize_range[index_no]
-
-                existing_entry["from"] = entry.get("from", existing_entry["from"])
-                existing_entry["to"] = entry.get("to", existing_entry["to"])
-                existing_entry["prize"] = entry.get("prize", existing_entry["prize"])
-
+            if entry_id and entry_id in existing_prize_dict:
+                # Update existing entry
+                existing_entry = existing_prize_dict[entry_id]
+                existing_entry["from"] = entry.get("from", existing_entry.get("from", ""))
+                existing_entry["to"] = entry.get("to", existing_entry.get("to", ""))
+                existing_entry["prize"] = entry.get("prize", existing_entry.get("prize", ""))
             else:
-                # If index is out of range, add as new entry
+                # Add new entry if the ID does not exist
                 new_entry = {
+                    "id": entry.get("id", ""),  # Keep ID as provided
                     "from": entry.get("from", ""),
                     "to": entry.get("to", ""),
                     "prize": entry.get("prize", ""),
-                    "id": entry.get("id", ""),
                 }
                 existing_prize_range.append(new_entry)
 
@@ -400,21 +365,7 @@ class Product_updateanddelete(APIView):
         item.prize_range = existing_prize_range
         item.save()
 
-        # Update other fields dynamically
-        mutable_data = request.data.copy()
-        mutable_data.pop("item_number", None)
-        mutable_data.pop("new_image", None)
-        mutable_data.pop("prize_range", None)
-
-        serializer = ProductListSerializer(item, data=mutable_data, partial=True)
-
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "Product updated successfully", "data": serializer.data}, status=200)
-        else:
-            return Response(serializer.errors, status=400)
-
-
+        return Response({"message": "Prize range updated successfully", "prize_range": item.prize_range}, status=200)
         
     def delete(self,request,id):
         try:
@@ -1171,20 +1122,23 @@ class Total_orders_list(APIView):
         if not order_list:
             return Response({"error": "No order_list found"})
         order_products = []
+        final_list = []
         for orders in order_list:
-            user_id = orders.user_id
-            for products in orders.product_items:
+            orderd_list = {
+                "userid":orders.product_items.user_id,
+                "address": orders.product_items.get("address"),
+                "order_id": orders.product_items.get("order_id"),
+                "date": orders.product_items.get("date"),
+                "final_amount": orders.product_items.get("final_amount"),
+            }
+            for products in orders.product_items.get("products", []):
                 product_id = products.get('product_id')
-                order_id = products.get('order_id')
                 product_list = Product_list.objects.filter(id=product_id).first()
                 if not product_list:
                     print(f"Skipping product with ID {product_id} (Not Found)")
                     continue  
                 order_products.append(
                     {
-                        'user_id':user_id,
-                        'order_id':order_id,
-                        "address": products.get('address'),
                         "product_id":product_id,
                         "product_name": product_list.product_name,
                         "product_images": product_list.product_images
@@ -1193,13 +1147,17 @@ class Total_orders_list(APIView):
                         "product_category": product_list.product_category,
                         "product_stock": product_list.product_stock,
                         "order_status": products.get("order_status"),
-                        "total_count": products.get("total_count"),
                         "total_amount": products.get("total_amount"),
-
                     }
                 )
+            final_list.append(
+                {
+                    "orderd_list":orderd_list,
+                    "order_products":order_products
+                }
+            )
 
-        return Response(order_products,status=200)
+        return Response(final_list,status=200)
             
 
 class Search_all_products(APIView):
