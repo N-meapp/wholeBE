@@ -128,16 +128,6 @@ class Order_products(models.Model):
     user_id = models.CharField(max_length=20)
     product_items = models.JSONField(default=list)
 
-
-    def order_add(self, products):
-        
-        # Ensure all elements in the list are dictionaries
-        if not all(isinstance(item, dict) for item in products):
-            raise ValidationError("Each product must be a dictionary.")
-
-        self.product_items.extend(products)  # Append new products
-        self.save() 
-
     def __str__(self):
         return self.user_id
 

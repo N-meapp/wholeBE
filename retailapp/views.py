@@ -226,6 +226,12 @@ class ProductListPost(APIView):
             for prize in prize_list:
                 if not isinstance(prize, dict):
                     return Response({"error": "Each entry in prize_range must be a dictionary."}, status=status.HTTP_400_BAD_REQUEST)
+                new_entry = {
+                        "from": prize.get("from", ""),  # Default empty if not provided
+                        "to": prize.get("to", ""),
+                        "prize": prize.get("prize", "")
+                    }
+                prize_list.append(new_entry)
 
         else:
             prize_list = []  # If prize_range is not provided, set it to an empty list
@@ -858,28 +864,27 @@ class order_products(APIView):
 
     def post(self,request):
         user_id = request.data.get('user_id')
-        products = request.data.get('products')
+        orders = request.data.get('orders')
 
         print("Received user_id:", user_id)
-        print("Received products:", products)
+        print("Received products:", orders)
 
 
         # Validate data
-        if user_id is None or not isinstance(products, list) :
-            return Response({"error": "Invalid data format (user_id missing or products is not a list)"}, status=400)
+        if user_id is None or not isinstance(orders, list) :
+            return Response({"error": "Invalid data format (user_id missing or orders is not a list)"}, status=400)
 
         # Check if cart already exists for the user
-        order_products= Order_products.objects.filter(user_id=user_id).first()
+        # order_products= Order_products.objects.filter(user_id=user_id).first()
 
-        if order_products:
-            # Update existing cart
-            order_products.order_add(products)
-            serializer = OrderSerializer(order_products)
-        else:
-            # Create new cart entry
-            order_products = Order_products.objects.create(user_id=user_id, product_items=products)
-            serializer = OrderSerializer(order_products)
-
+        # if order_products:
+        #     # Update existing cart
+        #     order_products.order_add(products)
+        #     serializer = OrderSerializer(order_products)
+        # else:
+        # Create new cart entry
+        order_products = Order_products.objects.create(user_id=user_id, product_items=orders)
+        serializer = OrderSerializer(order_products)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def get(self, request):
@@ -890,50 +895,51 @@ class order_products(APIView):
             order_list = []
             customer = Customer.objects.filter(id=user).first()
 
-            check_order = Order_products.objects.filter(user_id=user).first()
-            print("The order item with user:", check_order)
+            if not customer:
+                return Response({"error": "No User found"}, status=404)
+
+            check_order = Order_products.objects.filter(user_id=user)
+            print("The order items with user:", check_order)
 
             if check_order:
-                for products in check_order.product_items:
-                    product_id = products.get("product_id")
-                    print("The product ID is:", product_id)
+                for order in check_order:
+                    for products in order.product_items:  # Ensure this is a list
+                        for product_id in products["products"]:  # Access the list of products correctly
+                            product_id = product_id.get("product_id")  # Extract product_id safely
+                            print("The product ID is:", product_id)
 
-                    # Fetch product from Product_list
-                    product_list = Product_list.objects.filter(id=product_id).first()
-                    if not product_list:
-                        print(f"Skipping product with ID {product_id} (Not Found)")
-                        continue  
+                            # Fetch product details
+                            product_list = Product_list.objects.filter(id=product_id).first()
+                            if not product_list:
+                                print(f"Skipping product with ID {product_id} (Not Found)")
+                                continue  
 
-                    order_list.append(
-                        {
-                            "user_id": user,
-                            "username":customer.username,
-                            "product_id":product_id,
-                            "product_name": product_list.product_name,
-                            "product_images": product_list.product_images
-                            if product_list.product_images
-                            else None,
-                            "product_category": product_list.product_category,
-                            "product_stock": product_list.product_stock,
-                            "order_status": products.get("order_status"),
-                            "total_quantity": products.get("total_count"),
-                            "total_amount": products.get("total_amount"),
-                            "product_description":product_list.product_description
-                        }
-                    )
+                            order_list.append(
+                                {
+                                    "user_id": user,
+                                    "username": customer.username,
+                                    "product_id": product_id,
+                                    "product_name": product_list.product_name,
+                                    "product_images": product_list.product_images if product_list.product_images else None,
+                                    "product_category": product_list.product_category,
+                                    "product_stock": product_list.product_stock,
+                                    "order_status": products.get("order_status"),
+                                    "total_quantity": pid.get("count"),  # Corrected key
+                                    "total_amount": pid.get("total_amount"),  # Corrected key
+                                    "product_description": product_list.product_description,
+                                }
+                            )
 
                 if not order_list:
-                    return Response(
-                        {"error": "No products found in order_list"}, status=404
-                    )
+                    return Response({"error": "No products found in order_list"}, status=404)
 
                 return Response(order_list)
 
             else:
-                return Response({"error": "No product found for this username"})
+                return Response({"error": "No product found for this user"}, status=404)
 
         else:
-            return Response({"error": "No User found"})
+            return Response({"error": "No User found"}, status=400)
 
 
 
