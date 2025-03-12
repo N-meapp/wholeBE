@@ -372,7 +372,7 @@ class Product_updateanddelete(APIView):
         for entry in new_range:
             index_no = entry.get("id")
 
-            if index_no is not None and 0 <= index_no < len(existing_prize_range):
+            if index_no is not None:
                 # Get existing entry and update only provided fields
                 existing_entry = existing_prize_range[index_no]
 
