@@ -1031,11 +1031,13 @@ class order_products(APIView):
 
 class UpdateOrderStatus(APIView):
     permission_classes = [AllowAny]
+
+
     def patch(self, request):
         order_reject = request.data.get("rejected_product", [])  # List of rejected product IDs
         user_id = request.data.get("user_id")
-        order_id = request.data.get("order_id")
-        # if not isinstance(p_id,int ,for p_id in order_reject)
+        order_id = int(request.data.get("order_id", 0))  # Convert order_id to integer
+
         print("The request data list:", order_reject, user_id, order_id)
 
         # Fetch the order related to the user and order_id
@@ -1051,18 +1053,22 @@ class UpdateOrderStatus(APIView):
 
         updated = False  # Flag to check if any update happens
         order_found = False  # Flag to check if the order_id exists
-        for pid in order_reject:
-            product_id = int(pid)
-            for item in product_items_list:
-                if item['order_id'] == order_id:
-                    order_found = True
-                    for product in item.get("products", []):  # Fixed method call
-                        if product["product_id"] in order_reject:
-                            print("Rejecting product:", product["product_id"])
-                            product["order_status"] = "rejected"
-                        else:
-                            product["order_status"] = "accepted"
-                        updated = True  # Set flag when update occurs
+
+        # Convert product IDs to integers
+        rejected_product_ids = {int(pid) for pid in order_reject}
+        print("Rejected product IDs:", rejected_product_ids)
+
+        for item in product_items_list:
+            if int(item["order_id"]) == order_id:  # Ensure order_id comparison is correct
+                order_found = True
+                for product in item.get("products", []):
+                    proid = int(product.get("product_id", 0))  # Ensure product_id is an integer
+                    print("Checking product ID:", proid)
+
+                    if proid in rejected_product_ids:
+                        print(f"Rejecting product: {proid}")
+                        product["order_status"] = "rejected"
+                        updated = True
 
         if not order_found:
             return Response({"message": "No orders match"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1078,6 +1084,7 @@ class UpdateOrderStatus(APIView):
             )
 
         return Response({"message": "No updates were made"}, status=status.HTTP_400_BAD_REQUEST)
+    
 
 class CancelOrder(APIView):
     permission_classes = [AllowAny]
@@ -1433,26 +1440,37 @@ class Enquiry_send(APIView):
         else:
             return Response({"message":"the enquiry form is not valid check field names or method"},status=200)
         
-    def get(self,request):
+    def get(self, request):
         enquiry = Enquiry.objects.all()
-        enquiry_list=[]
-        if enquiry:
-            for items in enquiry:
-                product_id = items.product_id
-                print("the product id is:",product_id) 
-                product_list = Product_list.objects.filter(id=product_id).first()
-                print('the product list:',product_list)
-                enquiry_list.append({
-                    "username":items.user_id,
-                    "product_name":product_list.product_name,
-                    "product_image":product_list.product_images if product_list.product_images else None, 
-                    "product_description":product_list.product_description,
-                    "message":items.message
-                }
-                )
-            return Response(enquiry_list,status=200)
+        enquiry_list = []
+
+        for items in enquiry:
+            product_id = items.product_id
+            print("The product ID is:", product_id)
+
+            try:
+                product = Product_list.objects.get(id=product_id)
+            except Product_list.DoesNotExist:
+                print(f"Product with ID {product_id} not found.")
+                continue  # Skip this enquiry if the product does not exist
+
+            print("The product list:", product)
+
+            enquiry_list.append({
+                "username": items.user_id,
+                "product_name": product.product_name,
+                "product_image": product.product_images if product.product_images else None,  # Convert to URL string
+                "product_description": product.product_description,
+                "product_category": product.product_category,
+                "prize_range": product.prize_range,
+                "product_stock": product.product_stock,
+                "message": items.message
+            })
+
+        if enquiry_list:
+            return Response(enquiry_list, status=status.HTTP_200_OK)
         else:
-            return Response({"error": "Enquiry not found"},status=400)
+            return Response({"error": "No enquiries found"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class Top_products(APIView):
