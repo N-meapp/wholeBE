@@ -1051,17 +1051,18 @@ class UpdateOrderStatus(APIView):
 
         updated = False  # Flag to check if any update happens
         order_found = False  # Flag to check if the order_id exists
-
-        for item in product_items_list:
-            if item['order_id'] == order_id:
-                order_found = True
-                for product in item.get("products", []):  # Fixed method call
-                    if product["product_id"] in order_reject:
-                        print("Rejecting product:", product["product_id"])
-                        product["order_status"] = "rejected"
-                    else:
-                        product["order_status"] = "accepted"
-                    updated = True  # Set flag when update occurs
+        for pid in order_reject:
+            product_id = int(pid)
+            for item in product_items_list:
+                if item['order_id'] == order_id:
+                    order_found = True
+                    for product in item.get("products", []):  # Fixed method call
+                        if product["product_id"] in order_reject:
+                            print("Rejecting product:", product["product_id"])
+                            product["order_status"] = "rejected"
+                        else:
+                            product["order_status"] = "accepted"
+                        updated = True  # Set flag when update occurs
 
         if not order_found:
             return Response({"message": "No orders match"}, status=status.HTTP_400_BAD_REQUEST)
