@@ -1433,27 +1433,28 @@ class Enquiry_send(APIView):
     permission_classes = [AllowAny]
 
     def post(self,request):
-        serializer = EnquirySerializer(data = request.data)
+        try:
+            serializer = EnquirySerializer(data = request.data)
+        except Exception as e:
+            return Response({"message":"the data has to be enter"},status=500)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data,status=200)
         else:
-            return Response({"message":"the enquiry form is not valid check field names or method"},status=200)
+            return Response({"message":"the enquiry form is not valid check field names or method"},status=500)
         
     def get(self, request):
         enquiry = Enquiry.objects.all()
         enquiry_list = []
 
         for items in enquiry:
-            product_id = items.product_id
+            product_id = int(items.product_id)
             print("The product ID is:", product_id)
-
             try:
                 product = Product_list.objects.get(id=product_id)
             except Product_list.DoesNotExist:
                 print(f"Product with ID {product_id} not found.")
                 continue  # Skip this enquiry if the product does not exist
-
             print("The product list:", product)
 
             enquiry_list.append({
