@@ -1012,6 +1012,7 @@ class order_products(APIView):
                         "product_category": product_list.product_category,
                         "product_stock": product_list.product_stock,
                         "product_description": product_list.product_description,
+                        "order_status": product.get("order_status"),
                         "total_amount":product.get("total_amount")
                     }
                 )
