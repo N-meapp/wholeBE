@@ -1035,7 +1035,7 @@ class UpdateOrderStatus(APIView):
         order_reject = request.data.get("rejected_product", [])  # List of rejected product IDs
         user_id = request.data.get("user_id")
         order_id = request.data.get("order_id")
-
+        # if not isinstance(p_id,int ,for p_id in order_reject)
         print("The request data list:", order_reject, user_id, order_id)
 
         # Fetch the order related to the user and order_id
@@ -1050,21 +1050,31 @@ class UpdateOrderStatus(APIView):
         print("The product_items_list data:", product_items_list)
 
         updated = False  # Flag to check if any update happens
+        order_found = False  # Flag to check if the order_id exists
 
         for item in product_items_list:
-            if item["order_id"] == order_id:
-                if item["product_id"] in order_reject:
-                    item["order_status"] = "rejected"
-                else:
-                    item["order_status"] = "accepted"
-                updated = True
+            if item['order_id'] == order_id:
+                order_found = True
+                for product in item.get("products", []):  # Fixed method call
+                    if product["product_id"] in order_reject:
+                        print("Rejecting product:", product["product_id"])
+                        product["order_status"] = "rejected"
+                    else:
+                        product["order_status"] = "accepted"
+                    updated = True  # Set flag when update occurs
+
+        if not order_found:
+            return Response({"message": "No orders match"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Save changes if any updates were made
         if updated:
             order.product_items = product_items_list
             order.save(update_fields=["product_items"])  # Save only the modified field
             print(f"Order {order.id} updated successfully")
-            return Response({"message": "Order updated successfully", "updated_items": product_items_list}, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "Order updated successfully", "updated_items": product_items_list},
+                status=status.HTTP_200_OK
+            )
 
         return Response({"message": "No updates were made"}, status=status.HTTP_400_BAD_REQUEST)
 
