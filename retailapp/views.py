@@ -1226,14 +1226,17 @@ class Total_orders_list(APIView):
         # Process each order
         for order in order_list:
             userid = order.user_id
+            customer = Customer.objects.get(id = userid)
 
             for data in order.product_items:
                 orderd_list = {
                     "userid": userid,
+                    "username":customer.username,
                     "address": data.get("address"),
                     "order_id": data.get("order_id"),
                     "date": data.get("date"),
                     "final_amount": data.get("final_amount"),
+                    "profile_image": str(customer.profile_image.url) if customer.profile_image else None,
                 }
 
                 order_products = []
@@ -1252,6 +1255,7 @@ class Total_orders_list(APIView):
                                 "product_stock": product_details["product_stock"],
                                 "order_status": product.get("order_status"),
                                 "total_amount": product.get("total_amount"),
+                                "count":product.get("count")
                             }
                         )
 
