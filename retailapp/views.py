@@ -966,6 +966,8 @@ class order_products(APIView):
         print("Received user_id:", user_id)
         print("Received products:", orders)
 
+        cart = Cart_items.objects.filter()
+
 
         # Validate data
         if user_id is None or not isinstance(orders, dict):
@@ -1080,6 +1082,7 @@ class UpdateOrderStatus(APIView):
         order_reject = request.data.get("rejected_product", [])  # List of rejected product IDs
         user_id = request.data.get("user_id")
         order_id = int(request.data.get("order_id", 0))  # Convert order_id to integer
+        ordertrack = request.data.get("order_track")
 
         print("The request data list:", order_reject, user_id, order_id)
 
@@ -1095,7 +1098,7 @@ class UpdateOrderStatus(APIView):
         print("The product_items_list data:", product_items_list)
 
         updated = False  # Flag to check if any update happens
-        order_found = False  # Flag to check if the order_id exists
+        order_found = False  # Flag to check if the order_id exists                  
 
         # Convert product IDs to integers
         rejected_product_ids = {int(pid) for pid in order_reject}
@@ -1104,6 +1107,7 @@ class UpdateOrderStatus(APIView):
         for item in product_items_list:
             if int(item["order_id"]) == order_id:  # Ensure order_id comparison is correct
                 order_found = True
+                item['order_tracking'] = ordertrack
                 for product in item.get("products", []):
                     proid = int(product.get("product_id", 0))  # Ensure product_id is an integer
                     print("Checking product ID:", proid)
@@ -1112,7 +1116,9 @@ class UpdateOrderStatus(APIView):
                         print(f"Rejecting product: {proid}")
                         product["order_status"] = "rejected"
                         updated = True
-
+                    else:
+                        product["order_status"] = "accepted"
+                        updated = True
         if not order_found:
             return Response({"message": "No orders match"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1132,17 +1138,27 @@ class UpdateOrderStatus(APIView):
 class Update_tracking(APIView):
     permission_classes = [AllowAny]
     
-    def patch(self,request,id):
-        order_loc = request.data.get('order_status')
+    def patch(self, request, id):
+        order_loc = request.data.get('order_status')  # New status from request
+        
         try:
-            order_list = Order_products.objects.get(id=id)
-        except Error:
-            return Response({'error':'no orders found'},status=404)
+            order_list = Order_products.objects.get(id=id)  # Fetch the order
+        except order_list.DoesNotExist:
+            return Response({'error': 'No orders found'}, status=404)
+
+        # Assuming product_items is a JSONField (a list of dicts)
+        updated_products = []  
         for order in order_list.product_items:
-            order_tracking = order.get('order_tracking')
-            if order_tracking == 'accepted':
-                order_tracking = order_loc
-                order_list.save(update_fields='pro')
+            if order.get('order_tracking') == 'accepted':  # Check tracking status
+                order['order_tracking'] = order_loc  # Update status
+            updated_products.append(order)  # Add modified/unmodified product
+
+        # Save updated JSON list back to the model
+        order_list.product_items = updated_products  
+        order_list.save(update_fields=['product_items'])
+
+        return Response({'message': 'Order status updated successfully'}, status=200)
+
 
 class CancelOrder(APIView):
     permission_classes = [AllowAny]

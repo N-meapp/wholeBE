@@ -24,6 +24,7 @@ urlpatterns = [
     path('api/Delete_all_cart/', Delete_all_cart.as_view(), name='Delete_all_cart'),
     path('api/order_products/', order_products.as_view(), name='order_products'),
     path('api/Update_order_status/', UpdateOrderStatus.as_view(), name='Update_order_status'),
+    path('api/Update_tracking/<int:id>', Update_tracking.as_view(), name='Update_tracking'),
     path('api/Stock_auto_update/', Stock_auto_update.as_view(), name='Stock_auto_update'),
     path('api/Total_counts_dashboard/', Total_counts_dashboard.as_view(), name='Total_counts_dashboard'),
     path('api/Update_customer_status/<int:id>/', Update_customer_status.as_view(), name='Update_customer_status'),
