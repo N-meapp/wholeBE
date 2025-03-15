@@ -545,29 +545,27 @@ class ProductAddExtraImage(APIView):
     #                 return Response({"error": "no image_list found"}, status=500)
     #     except Exception as e:
     #         return Response({"error": "no product found"}, status=500)
-    def post(self,request,id):
-        existing_images_update = request.data.get('existing_images_update')
-        if not isinstance(existing_images_update,list):
-            return Response({'error':'the existing_images_update must be a list'},status=400)
-        try:
-            product = Product_list.objects.get(id = id)
-        except Product_list.DoesNotExist:
-            return Response({'error':'the product not existing'},status=404)
-        productimages = product.product_images
-        if not isinstance(productimages,list):
-            productimages = []
-        productimages = existing_images_update
-        productimages.save()
-        return Response({'message':'product updated succwssfully'},status=400)
 
+    def post(self, request, id):
+        existing_images_update = request.data.get('existing_images_update', [])
 
+        if not isinstance(existing_images_update, list):
+            return Response({'error': 'The existing_images_update must be a list'}, status=400)
 
-        
+        # Fetch the product
+        product = get_object_or_404(Product_list, id=id)
 
-            
-            
+        # Ensure product_images is a list
+        if not isinstance(product.product_images, list):
+            return Response({'error': 'product_images field is not a list'}, status=400)
 
+        # Update the images
+        product.product_images = existing_images_update
 
+        # Save the product
+        product.save()
+
+        return Response({'message': 'Product images updated successfully'}, status=200)
 
 
 
@@ -1101,9 +1099,7 @@ class order_products(APIView):
 
         if not final_list:
             return Response({"error": "No orders found"}, status=404)
-
         return Response(final_list)
-
 
 
 class UpdateOrderStatus(APIView):
@@ -1113,7 +1109,7 @@ class UpdateOrderStatus(APIView):
     def patch(self, request):
         order_reject = request.data.get("rejected_products", [])  # List of rejected product IDs
         user_id = request.data.get("userId")
-        order_id = int(request.data.get("orderId", 0))  # Convert order_id to integer
+        order_id = request.data.get("orderId", 0)  # Convert order_id to integer
         ordertrack = request.data.get("order_track")
 
         print("The request data list:", order_reject, user_id, order_id)
@@ -1137,7 +1133,7 @@ class UpdateOrderStatus(APIView):
         print("Rejected product IDs:", rejected_product_ids)
 
         for item in product_items_list:
-            if int(item["order_id"]) == order_id:  # Ensure order_id comparison is correct
+            if item["order_id"] == order_id:  # Ensure order_id comparison is correct
                 order_found = True
                 item['order_tracking'] = ordertrack
                 for product in item.get("products", []):
@@ -1249,7 +1245,6 @@ class CancelOrder(APIView):
 
         try:
             userid = int(userid)
-            orderid = int(orderid)
         except ValueError:
             return Response({'error': 'Invalid ID format, must be integers'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1672,22 +1667,26 @@ class Top_products(APIView):
 class slider_Adds(APIView):
     permission_classes = [AllowAny]
     
-    def post(self, request,id=None):
-        image = request.FILES.get('image')  # Fix request.Files -> request.FILES
+    def post(self, request):
+        image = request.FILES.get('image')  # Ensure the file is received
         if not image:
-            return Response({'error': 'The image file is needed'}, status=400)
+            return Response({'error': 'The image file is required'}, status=400)
 
         try:
-            upload_result = cloudinary.uploader.upload(image)
-            image_url = upload_result.get("secure_url")  # Get Cloudinary URL
-
+            # Upload image to Cloudinary
+            cloudinary_response = cloudinary.uploader.upload(image)
+            cloudinary_url = cloudinary_response.get("secure_url")
+            
             # Save in the model
-            slider = Slider_Add.objects.create(slider_image=image_url)
-            return Response({'message': 'Image uploaded successfully', 'image_url': image_url}, status=201)
+            slider = Slider_Add.objects.create(slider_image=cloudinary_url)
+
+            return Response({
+                'message': 'Image uploaded successfully',
+                'image_url': cloudinary_url
+            }, status=201)
         
         except Exception as e:
-            return Response({'error': str(e)}, status=500)
-
+            return Response({'error': f'Upload failed: {str(e)}'}, status=500)
 
     def get(self,request,id=None):
         try:
@@ -1697,26 +1696,26 @@ class slider_Adds(APIView):
         except Exception as e:
             return Response({'error': 'not found any item'}, status=500)
 
-    def patch(self, request, id):
-        slider_item = get_object_or_404(Slider_Add, id=id)  # Returns 404 if not found
-        new_image = request.FILES.get('new_image')
+    # def patch(self, request, id):
+    #     slider_item = get_object_or_404(Slider_Add, id=id)  # Returns 404 if not found
+    #     new_image = request.FILES.get('new_image')
 
-        if not new_image:
-            return Response({'error': 'No new image provided'}, status=400)
+    #     if not new_image:
+    #         return Response({'error': 'No new image provided'}, status=400)
 
-        try:
-            upload_result = cloudinary.uploader.upload(new_image)
-            image_url = upload_result.get("secure_url")
+    #     try:
+    #         upload_result = cloudinary.uploader.upload(new_image)
+    #         image_url = upload_result.get("secure_url")
 
-            slider_item.slider_image = image_url
-            slider_item.save()  # Save updated image URL
+    #         slider_item.slider_image = image_url
+    #         slider_item.save()  # Save updated image URL
 
-            # Serialize the updated object
-            serializer = Slider_Add_Serializer(slider_item)
-            return Response(serializer.data, status=200)
+    #         # Serialize the updated object
+    #         serializer = Slider_Add_Serializer(slider_item)
+    #         return Response(serializer.data, status=200)
         
-        except Exception as e:
-            return Response({'error': str(e)}, status=500)
+    #     except Exception as e:
+    #         return Response({'error': str(e)}, status=500)
     
     def delete(self,request,id):
         slider_item = get_object_or_404(Slider_Add, id=id)
