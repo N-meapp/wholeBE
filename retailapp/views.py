@@ -1217,7 +1217,7 @@ class CancelOrder(APIView):
         # Check if all products in the given order_id have order_status = None
         all_null_status = True  # Assume all products are cancelable
         for item in order_list.product_items:
-            if item.get("order_id") == order_id:
+            if item["order_id"] == order_id:
                 for product in item.get("products", []):
                     item_status = product.get("order_status")
                     if item_status is not None and item_status.lower() != "null":
