@@ -959,24 +959,36 @@ class Delete_all_cart(APIView):
 class order_products(APIView):
     permission_classes = [AllowAny]
 
-    def post(self,request):
+    def post(self, request):
         user_id = request.data.get('user_id')
         orders = request.data.get('orders')
 
         print("Received user_id:", user_id)
         print("Received products:", orders)
 
-        cart = Cart_items.objects.filter()
+        # Validate user_id and orders
+        if not user_id or not isinstance(orders, dict):
+            return Response({"error": "Invalid data format (user_id missing or orders is not a dict)"}, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            # Create new order
+            order_products = Order_products.objects.create(user_id=user_id, product_items=orders)
+            serializer = OrderSerializer(order_products)
 
-        # Validate data
-        if user_id is None or not isinstance(orders, dict):
-            return Response({"error": "Invalid data format (user_id missing or orders is not a dict)"}, status=400)
+            # Clear user's cart if it exists
+            cart = Cart_items.objects.filter(user_id=user_id).first()
+            if cart:
+                cart.delete()
+                print("Cart cleared for user:", user_id)
+                return Response({"message":"Order placed successfully and Cart cleared for user","order_details":serializer.data},status=200)
+            return Response({
+                "message": "Order placed successfully",
+                "order_details": serializer.data
+            }, status=status.HTTP_201_CREATED)
 
-        # Create new cart entry
-        order_products = Order_products.objects.create(user_id=user_id, product_items=orders)
-        serializer = OrderSerializer(order_products)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            print(f"Error placing order: {e}")
+            return Response({"error": "Failed to place order"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 
 
@@ -1206,59 +1218,60 @@ class CancelOrder(APIView):
     def delete(self, request):
         userid = request.data.get('user_id')
         orderid = request.data.get('order_id')
-        productid = request.data.get('product_id')
+        productids = request.data.get('product_id')  # Expecting a list
 
         # Validate required fields
-        if not all([userid, orderid, productid]):
-            return Response({'error': 'All fields (user_id, order_id, product_id) are required'}, status=400)
+        if not all([userid, orderid, productids]):
+            return Response({'error': 'All fields (user_id, order_id, product_id) are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not isinstance(productids, list):
+            return Response({'error': 'product_id must be a list'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             userid = int(userid)
             orderid = int(orderid)
-            productid = int(productid)
         except ValueError:
-            return Response({'error': 'Invalid ID format, must be integers'}, status=400)
+            return Response({'error': 'Invalid ID format, must be integers'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Fetch the exact order for the given user and order_id
-        order_list = Order_products.objects.filter(user_id=userid)
-        
-        if not order_list:
-            return Response({'error': 'Order not found for this user'}, status=404)
+        # Fetch the order using user_id
+        try:
+            order = Order_products.objects.filter(user_id=userid)
+        except Order_products.DoesNotExist:
+            return Response({'error': 'Order not found for this user'}, status=status.HTTP_404_NOT_FOUND)
 
-        print(f"User ID: {userid}, Order ID: {orderid}, Product ID: {productid}")
-        print(f"Order List Data: {order_list.product_items}")
+        print(f"User ID: {userid}, Order ID: {orderid}, Product IDs: {productids}")
 
+        updated_product_items = []
         product_removed = False  
 
-        for order in order_list:
-            print(f"Checking order: {order}")  # Debugging
+        # Ensure product_items is a list
+        if not isinstance(order.product_items, list):
+            return Response({'error': 'Invalid data format in product_items'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            for product in order.product_items:
-                if order['order_id'] == orderid:
-                    print(f"Matching Order ID Found: {orderid}")  # Debugging
+        # Iterate over product_items to find the correct order
+        for order_data in order.product_items:
+            if order_data.get("order_id") == orderid:
+                updated_products = []
+                for product in order_data.get("products", []):
+                    if int(product["product_id"]) in productids and product.get("order_status") == "null":
+                        print(f"Removing Product ID: {product['product_id']}")
+                        product_removed = True
+                        continue  # Skip adding this product (removes it)
+                    updated_products.append(product)
 
-                    updated_products = []
-                    for item in order.get('products', []):
-                        print(f"Checking product: {item}")  # Debugging
+                # Update the products list in the order
+                order_data["products"] = updated_products
 
-                        if int(item['product_id']) == productid:
-                            print(f"Found Product ID: {productid}, Status: {item.get('order_status')}")
+            updated_product_items.append(order_data)  # Keep all orders
 
-                            if item.get('order_status') == 'null':  # Only delete if status is "null"
-                                print(f"Deleting Product ID: {productid}")
-                                product_removed = True
-                                continue
-                        updated_products.append(item)
+        # If a product was removed, update the order
+        if product_removed:
+            order.product_items = updated_product_items  # Update JSONField
+            order.save(update_fields=["product_items"])
+            return Response({'message': 'Product(s) removed successfully'}, status=status.HTTP_200_OK)
 
-                    # Update the order's product list if a product was removed
-                    if product_removed:
-                        order['products'] = updated_products
-                        order_list.save(update_fields=["product_items"])
-                        return Response({'message': 'Product removed successfully'}, status=200)
-
-            return Response({'error': 'Product not found or cannot be deleted'}, status=400)
-
-            
+        return Response({'error': 'Product not found or cannot be deleted'}, status=status.HTTP_400_BAD_REQUEST)
+                
 
 
 
