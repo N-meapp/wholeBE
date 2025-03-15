@@ -1194,7 +1194,7 @@ class CancelOrder(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('username')
+        username = request.data.get('user_id')
         order_id = request.data.get('order_id')
 
         if not username or not order_id:
@@ -1217,7 +1217,7 @@ class CancelOrder(APIView):
         # Check if all products in the given order_id have order_status = None
         all_null_status = True  # Assume all products are cancelable
         for item in order_list.product_items:
-            if str(item.get("order_id")).strip() == order_id:
+            if item.get("order_id") == order_id:
                 for product in item.get("products", []):
                     item_status = product.get("order_status")
                     if item_status is not None and item_status.lower() != "null":
@@ -1548,7 +1548,7 @@ class SearchOrders(APIView):
         )
 
         # **Step 2: Search in product_items**
-        if not order_list.exists():
+        if not order_list.exists(): 
             all_orders = Order_products.objects.all()
 
             for order in all_orders:
@@ -1559,17 +1559,16 @@ class SearchOrders(APIView):
 
                 matching_products = [
                     product for product in product_items
-                    if search_term in str(product.get("order_status", "")).lower()
+                    if search_term in str(product.get("order_track", "")).lower()
                     or search_term in str(product.get("order_id", "")).lower()
-                    or search_term in str(product.get("order_date", "")).lower()
-                    or search_term in str(product.get("product_name", "")).lower()
-                    or search_term in str(product.get("product_category", "")).lower()
+                    or search_term in str(product.get("date", "")).lower()
+                    or search_term in str(product.get("username", "")).lower()
+
+
                 ]
 
                 if matching_products:
                     filtered_orders.append({
-                        "id": order.id,
-                        "user_id": order.user_id,
                         "product_items": matching_products
                     })
 
