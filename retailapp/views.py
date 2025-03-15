@@ -347,8 +347,8 @@ class Product_updateanddelete(APIView):
         item = get_object_or_404(Product_list, id=id)
 
         # Extract fields from request
-        item_no = request.data.get("item_number")
-        new_image = request.FILES.get("new_image")
+        # item_no = request.data.get("item_number")
+        # new_image = request.FILES.get("new_image")
         new_range = request.data.get("prize_range", [])  # Default to empty list
 
         # Ensure new_range is properly formatted (list or JSON string)
@@ -396,30 +396,30 @@ class Product_updateanddelete(APIView):
         item.save()
 
         # Update image if provided
-        if new_image is not None and item_no is not None:
-            try:
-                item_no = int(item_no)
-                if item_no < 0 or item_no >= len(item.product_images):
-                    return Response({"error": "item_no out of range"}, status=400)
+        # if new_image is not None and item_no is not None:
+        #     try:
+        #         item_no = int(item_no)
+        #         if item_no < 0 or item_no >= len(item.product_images):
+        #             return Response({"error": "item_no out of range"}, status=400)
 
-                cloudinary_response = cloudinary.uploader.upload(new_image)
-                cloudinary_url = cloudinary_response.get("secure_url")
+        #         cloudinary_response = cloudinary.uploader.upload(new_image)
+        #         cloudinary_url = cloudinary_response.get("secure_url")
 
-                if not cloudinary_url:
-                    return Response({"error": "Failed to upload image to Cloudinary"}, status=500)
+        #         if not cloudinary_url:
+        #             return Response({"error": "Failed to upload image to Cloudinary"}, status=500)
 
-                # Replace image at the given index
-                item.product_images[item_no] = cloudinary_url
+        #         # Replace image at the given index
+        #         item.product_images[item_no] = cloudinary_url
 
-            except (ValueError, TypeError):
-                return Response({"error": "item_no must be an integer"}, status=400)
-            except Exception as e:
-                return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
+        #     except (ValueError, TypeError):
+        #         return Response({"error": "item_no must be an integer"}, status=400)
+        #     except Exception as e:
+        #         return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
 
         # Dynamically update other fields in the request
         mutable_data = request.data.copy()
-        mutable_data.pop("item_number", None)
-        mutable_data.pop("new_image", None)
+        # mutable_data.pop("item_number", None)
+        # mutable_data.pop("new_image", None)
         mutable_data.pop("prize_range", None)
 
         serializer = ProductListSerializer(item, data=mutable_data, partial=True)
@@ -431,8 +431,6 @@ class Product_updateanddelete(APIView):
             return Response(serializer.errors, status=400)
 
             
-
-        
     def delete(self,request,id):
         try:
             product = Product_list.objects.get(id=id)
@@ -471,7 +469,7 @@ class ProductAddExtraImage(APIView):
     permission_classes = [AllowAny]
 
     def patch(self, request, id):
-        new_images = request.FILES.get("new_images")  # Get multiple uploaded files
+        new_images = request.FILES.get("new_product_images")  # Get multiple uploaded files
         print("Received images:", new_images)
 
         product = Product_list.objects.filter(id=id).first()
@@ -525,29 +523,51 @@ class ProductAddExtraImage(APIView):
         }, status=status.HTTP_200_OK)
         
 
-    def delete(self,request,id):
-        index= request.data.get("index")
-        if index:
-            index = int(index)
-            print("the index is:",index)
+    # def delete(self,request,id):
+    #     index= request.data.get("index")
+    #     if index:
+    #         index = int(index)
+    #         print("the index is:",index)
+    #     try:
+    #         product = Product_list.objects.get(id=id)
+    #         print("the product is:",product)
+    #         if product:
+    #             image_list = product.product_images
+    #             print("the image_list is:",image_list)
+    #             if isinstance(image_list, list) and 0 <= index < len(image_list):
+    #                 deleted_image  = image_list.pop(index)  # Get image at the specified index
+    #                 product.product_images = image_list  # Update the field
+    #                 product.save()  # Save changes to the database
+    #                 print("Deleted Image URL:", deleted_image)
+    #                 serializer = ProductListSerializer(product)
+    #                 return Response(serializer.data)
+    #             else:
+    #                 return Response({"error": "no image_list found"}, status=500)
+    #     except Exception as e:
+    #         return Response({"error": "no product found"}, status=500)
+    def post(self,request,id):
+        existing_images_update = request.data.get('existing_images_update')
+        if not isinstance(existing_images_update,list):
+            return Response({'error':'the existing_images_update must be a list'},status=400)
         try:
-            product = Product_list.objects.get(id=id)
-            print("the product is:",product)
-            if product:
-                image_list = product.product_images
-                print("the image_list is:",image_list)
-                if isinstance(image_list, list) and 0 <= index < len(image_list):
-                    deleted_image  = image_list.pop(index)  # Get image at the specified index
-                    product.product_images = image_list  # Update the field
-                    product.save()  # Save changes to the database
-                    print("Deleted Image URL:", deleted_image)
-                    serializer = ProductListSerializer(product)
-                    return Response(serializer.data)
-                else:
-                    return Response({"error": "no image_list found"}, status=500)
-        except Exception as e:
-            return Response({"error": "no product found"}, status=500)
+            product = Product_list.objects.get(id = id)
+        except Product_list.DoesNotExist:
+            return Response({'error':'the product not existing'},status=404)
+        productimages = product.product_images
+        if not isinstance(productimages,list):
+            productimages = []
+        productimages = existing_images_update
+        productimages.save()
+        return Response({'message':'product updated succwssfully'},status=400)
+
+
+
         
+
+            
+            
+
+
 
 
 
@@ -1091,9 +1111,9 @@ class UpdateOrderStatus(APIView):
 
 
     def patch(self, request):
-        order_reject = request.data.get("rejected_product", [])  # List of rejected product IDs
-        user_id = request.data.get("user_id")
-        order_id = int(request.data.get("order_id", 0))  # Convert order_id to integer
+        order_reject = request.data.get("rejected_products", [])  # List of rejected product IDs
+        user_id = request.data.get("userId")
+        order_id = int(request.data.get("orderId", 0))  # Convert order_id to integer
         ordertrack = request.data.get("order_track")
 
         print("The request data list:", order_reject, user_id, order_id)
@@ -1388,6 +1408,7 @@ class Total_orders_list(APIView):
 
             for data in order.product_items:
                 orderd_list = {
+                    "id":order.id,
                     "userid": userid,
                     "username":customer.username,
                     "address": data.get("address"),
