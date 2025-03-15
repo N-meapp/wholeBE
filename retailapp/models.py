@@ -139,7 +139,7 @@ class Enquiry(models.Model):
 
 
 class Slider_Add(models.Model):
-    slider_image = CloudinaryField('image', folder="sliderimages/",blank=True, null=True) 
+    slider_image = CloudinaryField('image', folder="slider_images/",blank=True, null=True) 
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
 

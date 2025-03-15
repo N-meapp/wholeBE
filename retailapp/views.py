@@ -41,6 +41,7 @@ class Register_custumer(APIView):
     def post(self, request):
         username = request.data.get("username")
         password = request.data.get("password")
+        discount = request.data.get("discount_individual")
 
         if not username or not password:
             return Response({"error": "Username and password are required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -49,7 +50,7 @@ class Register_custumer(APIView):
             return Response({"error": "Username already taken"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Create new customer with hashed password
-        customer = Customer(username=username, password=make_password(password))
+        customer = Customer(username=username, password=make_password(password),discount_individual=discount)
         customer.save()
 
         return Response({"message": "User registered successfully"}, status=status.HTTP_201_CREATED)
@@ -1065,6 +1066,7 @@ class order_products(APIView):
                 "order_id": order_data.get("order_id"),
                 "date": order_data.get("date"),
                 "final_amount": order_data.get("final_amount"),
+                "order_track":order_data.get("order_track")
             }
 
             product_data = []
@@ -1408,6 +1410,7 @@ class Total_orders_list(APIView):
                     "username":customer.username,
                     "address": data.get("address"),
                     "order_id": data.get("order_id"),
+                    "order_track": data.get("order_track"),
                     "date": data.get("date"),
                     "final_amount": data.get("final_amount"),
                     "profile_image": str(customer.profile_image.url) if customer.profile_image else None,
@@ -1674,21 +1677,21 @@ class slider_Adds(APIView):
 
         try:
             # Upload image to Cloudinary
-            cloudinary_response = cloudinary.uploader.upload(image)
-            cloudinary_url = cloudinary_response.get("secure_url")
+            upload_result = cloudinary.uploader.upload(image)
+            image_url = upload_result.get("secure_url")  
             
             # Save in the model
-            slider = Slider_Add.objects.create(slider_image=cloudinary_url)
+            slider = Slider_Add.objects.create(slider_image = image_url)
 
             return Response({
                 'message': 'Image uploaded successfully',
-                'image_url': cloudinary_url
+                'image_url': image_url
             }, status=201)
         
         except Exception as e:
             return Response({'error': f'Upload failed: {str(e)}'}, status=500)
 
-    def get(self,request,id=None):
+    def get(self,request):
         try:
             sliders = Slider_Add.objects.all()
             serializer = Slider_Add_Serializer(sliders,many=True)
