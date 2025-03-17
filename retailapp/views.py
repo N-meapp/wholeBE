@@ -335,7 +335,7 @@ class ProduclistViewlimit(APIView):
 
     def get(self, request):
             response_data = []
-            products = Product_list.objects.all()[:2]
+            products = Product_list.objects.all()[:6]
 
             for product in products:
                 product_prize = product.prize_range
@@ -624,7 +624,7 @@ class Search_history(APIView):
 
     def post(self, request):
         # Check if the user is logged in
-        user_name = request.session.get("author")  # Assuming "author" stores the logged-in user's ID
+        user_name = request.get("user_id")  # Assuming "author" stores the logged-in user's ID
         print('user is',user_name)
         if user_name:
             try:
