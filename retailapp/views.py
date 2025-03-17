@@ -324,11 +324,58 @@ class ProduclistView(APIView):
                 serializer = ProductListSerializer(product)
                 product_data = serializer.data
                 product_data['discounted_prices'] = discounted_prices  # Add discount data
-
                 response_data.append(product_data)
 
             # Ensure a valid Response is always returned
             return Response(response_data, status=status.HTTP_200_OK)
+    
+
+class ProduclistViewlimit(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+            response_data = []
+            products = Product_list.objects.all()[:2]
+
+            for product in products:
+                product_prize = product.prize_range
+                print("product_prize is", product_prize)
+
+                try:
+                    discount = int(product.product_discount)
+                    print('product_discount is:', discount)
+                except (ValueError, TypeError):
+                    discount = 0  # Default discount is 0 if not valid
+
+                discounted_prices = []
+                for prize in product_prize:
+                    if 'price' in prize:
+                        try:
+                            actual_prize = int(prize['price'])
+                            print("actual_prize is", actual_prize)
+
+                            final_discount = actual_prize - (actual_prize * discount / 100)
+                            print("Final Price after Discount:", final_discount)
+
+                            discounted_prices.append({
+                                "actual_price": actual_prize,
+                                "final_discount": final_discount
+                            })
+                            print("The output array is", discounted_prices)
+                            
+                        except (ValueError, TypeError):
+                            continue  # Skip invalid prices
+
+                # Serialize the product data
+                serializer = ProductListSerializer(product)
+                product_data = serializer.data
+                product_data['discounted_prices'] = discounted_prices  # Add discount data
+                response_data.append(product_data)
+
+            # Ensure a valid Response is always returned
+            return Response(response_data, status=status.HTTP_200_OK)
+
+
 
 
 class Product_updateanddelete(APIView):
@@ -1167,27 +1214,33 @@ class UpdateOrderStatus(APIView):
 
 class Update_tracking(APIView):
     permission_classes = [AllowAny]
-    
+
     def patch(self, request, id):
         order_loc = request.data.get('order_status')  # New status from request
         
         try:
             order_list = Order_products.objects.get(id=id)  # Fetch the order
-        except order_list.DoesNotExist:
-            return Response({'error': 'No orders found'}, status=404)
+        except:
+            return Response({'error': 'No orders found'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Assuming product_items is a JSONField (a list of dicts)
         updated_products = []  
-        for order in order_list.product_items:
-            if order.get('order_tracking') == 'accepted':  # Check tracking status
-                order['order_tracking'] = order_loc  # Update status
-            updated_products.append(order)  # Add modified/unmodified product
+        product_updated = False  # Track if any update happened
 
-        # Save updated JSON list back to the model
+        # Iterate over product_items (Assuming it's a list of dicts)
+        for order in order_list.product_items:
+            if order.get('order_track') == 'accepted':
+                order['order_track'] = order_loc  # Update status
+                product_updated = True  # Mark as updated
+            updated_products.append(order)  
+
+        if not product_updated:
+            return Response({'error': 'No products with tracking status "accepted" found'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Save updated product items back to the model
         order_list.product_items = updated_products  
         order_list.save(update_fields=['product_items'])
 
-        return Response({'message': 'Order status updated successfully'}, status=200)
+        return Response({'message': 'Order status updated successfully', 'updated_product_items': updated_products}, status=status.HTTP_200_OK)
 
 
 class CancelOrder(APIView):
@@ -1266,25 +1319,26 @@ class CancelOrder(APIView):
             return Response({'error': 'Invalid data format in product_items'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Iterate over product_items to find the correct order
-        for order_data in order.product_items:
-            if order_data.get("order_id") == orderid:
-                updated_products = []
-                for product in order_data.get("products", []):
-                    if int(product["product_id"]) in productids and product.get("order_status") == "null":
-                        print(f"Removing Product ID: {product['product_id']}")
-                        product_removed = True
-                        continue  # Skip adding this product (removes it)
-                    updated_products.append(product)
+        for order_item in order:
+            for order_data in order_item.product_items:
+                if order_data.get("order_id") == orderid:
+                    updated_products = []
+                    for product in order_data.get("products", []):
+                        if int(product["product_id"]) in productids and product.get("order_status") == "null":
+                            print(f"Removing Product ID: {product['product_id']}")
+                            product_removed = True
+                            continue  # Skip adding this product (removes it)
+                        updated_products.append(product)
 
-                # Update the products list in the order
-                order_data["products"] = updated_products
+                    # Update the products list in the order
+                    order_data["products"] = updated_products
 
-            updated_product_items.append(order_data)  # Keep all orders
+                updated_product_items.append(order_data)  # Keep all orders
 
         # If a product was removed, update the order
         if product_removed:
-            order.product_items = updated_product_items  # Update JSONField
-            order.save(update_fields=["product_items"])
+            order_item.product_items = updated_product_items  # Update JSONField
+            order_item.save(update_fields=["product_items"])
             return Response({'message': 'Product(s) removed successfully'}, status=status.HTTP_200_OK)
 
         return Response({'error': 'Product not found or cannot be deleted'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1641,28 +1695,29 @@ class Top_products(APIView):
 
         for orders in orders_list:
             for product in orders.product_items:
-                if product.get('order_status') == 'accepted':  # Use .get() to avoid KeyError
-                    product_id = product.get('product_id')
-                    print('The product id with status accepted:', product_id)
-                    if product_id in seen_products:  # Skip if already added
-                        continue
-                    try:
-                        product_list = Product_list.objects.get(id=product_id)
-                    except Product_list.DoesNotExist:
-                        continue  # Skip if product not found
-                    seen_products.add(product_id)
-                    
-                    response_data.append({
-                        'product_id': product_id,
-                        'product_name':product_list.product_name,
-                        'product_images':product_list.product_images if product_list.product_images else None,
-                        'product_description':product_list.product_description,
-                        'product_discount':product_list.product_discount if product_list.product_discount else None,
-                        'product_category':product_list.product_category,
-                        'prize_range':product_list.prize_range,
-                        'product_stock':product_list.product_stock,
-                        'order_status': product.get('order_status')
-                    })
+                for items in product.get('products',[]):
+                    if items.get('order_status') == 'accepted':  # Use .get() to avoid KeyError
+                        product_id = items.get('product_id')
+                        print('The product id with status accepted:', product_id)
+                        if product_id in seen_products:  # Skip if already added
+                            continue
+                        try:
+                            product_list = Product_list.objects.get(id=product_id)
+                        except Product_list.DoesNotExist:
+                            continue  # Skip if product not found
+                        seen_products.add(product_id)
+                        
+                        response_data.append({
+                            'product_id': product_id,
+                            'product_name':product_list.product_name,
+                            'product_images':product_list.product_images if product_list.product_images else None,
+                            'product_description':product_list.product_description,
+                            'product_discount':product_list.product_discount if product_list.product_discount else None,
+                            'product_category':product_list.product_category,
+                            'prize_range':product_list.prize_range,
+                            'product_stock':product_list.product_stock,
+                            'order_status': items.get('order_status')
+                        })
         
         return Response(response_data)
 
@@ -1727,3 +1782,5 @@ class slider_Adds(APIView):
         
         return Response({'error': 'No item check id'}, status=400)
         
+
+
