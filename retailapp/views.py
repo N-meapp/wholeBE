@@ -629,7 +629,7 @@ class Search_history(APIView):
         if user_name:
             try:
                 # Fetch the user from the database
-                user = Customer.objects.get(username=user_name)
+                user = Customer.objects.get(id=user_name)
             except Customer.DoesNotExist:
                 return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -648,13 +648,13 @@ class Search_history(APIView):
         
     
     def get(self, request):
-        user_name = request.session.get("author")  # Assuming "author" stores the logged-in user's username
+        user_name = request.data.get("user_id")  # Assuming "author" stores the logged-in user's username
         print('get user is', user_name)
         
         if user_name:
             try:
                 # Fetch the user from the database
-                user = Customer.objects.get(username=user_name)
+                user = Customer.objects.get(id=user_name)
                 search_data = user.search_history   
                 print('the user search history:', search_data)
 
@@ -673,7 +673,7 @@ class Search_history(APIView):
             except Customer.DoesNotExist:
                 return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
         else:
-            return Response({'message': 'No session found'}, status=status.HTTP_204_NO_CONTENT)
+            return Response({'message': 'user_id is compulosory'}, status=status.HTTP_204_NO_CONTENT)
 
 
 
@@ -1731,27 +1731,29 @@ class slider_Adds(APIView):
 
         try:
             # Upload image to Cloudinary
-            upload_result = cloudinary.uploader.upload(image)
-            image_url = upload_result.get("secure_url")  
+            upload_result = cloudinary.uploader.upload(image, resource_type="image")
+            image_url = upload_result["secure_url"]  # Extract the string URL
             
             # Save in the model
-            slider = Slider_Add.objects.create(slider_image = image_url)
+            slider = Slider_Add.objects.create(slider_image=image_url)
 
             return Response({
                 'message': 'Image uploaded successfully',
                 'image_url': image_url
             }, status=201)
-        
+
         except Exception as e:
             return Response({'error': f'Upload failed: {str(e)}'}, status=500)
 
-    def get(self,request):
-        try:
-            sliders = Slider_Add.objects.all()
-            serializer = Slider_Add_Serializer(sliders,many=True)
-            return Response(serializer.data,status=200)
-        except Exception as e:
-            return Response({'error': 'not found any item'}, status=500)
+    def get(self, request):
+        sliders = Slider_Add.objects.all()
+        for slider in sliders:
+            print(str(slider.slider_image))
+        if not sliders.exists():
+            return Response({'error': 'No images found'}, status=404)
+        
+        serializer = Slider_Add_Serializer(sliders, many=True)
+        return Response(serializer.data, status=200)
 
     # def patch(self, request, id):
     #     slider_item = get_object_or_404(Slider_Add, id=id)  # Returns 404 if not found
