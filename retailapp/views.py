@@ -624,7 +624,7 @@ class Search_history(APIView):
 
     def post(self, request):
         # Check if the user is logged in
-        user_name = request.get("user_id")  # Assuming "author" stores the logged-in user's ID
+        user_name = request.data.get("user_id")  # Assuming "author" stores the logged-in user's ID
         print('user is',user_name)
         if user_name:
             try:
@@ -676,8 +676,6 @@ class Search_history(APIView):
             return Response({'message': 'user_id is compulosory'}, status=status.HTTP_204_NO_CONTENT)
 
 
-
-
 # view for new arrivals
 class Newly_arrived(APIView):
     permission_classes = [AllowAny]
@@ -692,7 +690,6 @@ class Newly_arrived(APIView):
 
 
 
-
 class Home(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [AllowAny]
@@ -700,7 +697,6 @@ class Home(APIView):
     def get(self, request):
         content = {'message': 'Hello, World!'}
         return Response(content)
-
 
 
 # profile update
@@ -1314,12 +1310,12 @@ class CancelOrder(APIView):
         updated_product_items = []
         product_removed = False  
 
-        # Ensure product_items is a list
-        if not isinstance(order.product_items, list):
-            return Response({'error': 'Invalid data format in product_items'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Iterate over product_items to find the correct order
         for order_item in order:
+            if not isinstance(order_item.product_items, list):
+                return Response({'error': 'Invalid data format in product_items'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
             for order_data in order_item.product_items:
                 if order_data.get("order_id") == orderid:
                     updated_products = []
@@ -1329,6 +1325,7 @@ class CancelOrder(APIView):
                             product_removed = True
                             continue  # Skip adding this product (removes it)
                         updated_products.append(product)
+                        updated_products['final_amount']
 
                     # Update the products list in the order
                     order_data["products"] = updated_products
