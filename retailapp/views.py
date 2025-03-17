@@ -22,6 +22,7 @@ from django.contrib.auth.hashers import check_password
 import base64
 from cloudinary.uploader import upload
 from cloudinary.exceptions import Error
+import random
 
 SECRET_KEY = "django-insecure-+k#qrwj!@v*ls7(*xs%8!0wfip@6g^e!v!rn&d5y5d7tuj4vm(" 
 
@@ -648,32 +649,42 @@ class Search_history(APIView):
         
     
     def get(self, request):
-        user_name = request.query_params.get("user_id")  # Assuming "author" stores the logged-in user's username
+        user_name = request.query_params.get("user_id")  # Get the user ID from query params
+        see_more = request.query_params.get("see_more", "false").lower() == "true"  # Check if 'see more' is clicked
+
         print('get user is', user_name)
         
         if user_name:
             try:
                 # Fetch the user from the database
                 user = Customer.objects.get(id=user_name)
-                search_data = user.search_history
+                search_data = user.search_history  # ["Footwear", "Watches"]
                 print('the user search history:', search_data)
 
                 if not search_data:
                     return Response({'message': 'Search history is empty'}, status=status.HTTP_204_NO_CONTENT)
 
-                # Collect all matching products for the search terms
-                matched_products = Product_list.objects.filter(product_category__in=search_data).distinct()
+                # Fetch products that match search_data
+                matched_products = list(Product_list.objects.filter(product_category__in=search_data))
 
-                if matched_products.exists():
-                    serializer = ProductListSerializer(matched_products, many=True)
-                    return Response(serializer.data, status=status.HTTP_200_OK)
-                else:
+                if not matched_products:
                     return Response({'message': 'No matching products found'}, status=status.HTTP_204_NO_CONTENT)
+
+                # Shuffle the matched products to mix their order
+                random.shuffle(matched_products)
+
+                # If 'see_more' is clicked, return all products, otherwise, return only 6
+                if not see_more:
+                    matched_products = matched_products[:6]
+
+                # Serialize and return the response
+                serializer = ProductListSerializer(matched_products, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
 
             except Customer.DoesNotExist:
                 return Response({'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
         else:
-            return Response({'message': 'user_id is compulosory'}, status=status.HTTP_204_NO_CONTENT)
+            return Response({'message': 'user_id is compulsory'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # view for new arrivals
