@@ -648,14 +648,14 @@ class Search_history(APIView):
         
     
     def get(self, request):
-        user_name = request.data.get("user_id")  # Assuming "author" stores the logged-in user's username
+        user_name = request.query_params.get("user_id")  # Assuming "author" stores the logged-in user's username
         print('get user is', user_name)
         
         if user_name:
             try:
                 # Fetch the user from the database
                 user = Customer.objects.get(id=user_name)
-                search_data = user.search_history   
+                search_data = user.search_history
                 print('the user search history:', search_data)
 
                 if not search_data:
