@@ -1059,7 +1059,7 @@ class order_products(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        user_id = request.data.get('user_id')
+        user_id = request.data.get('userid')
         orders = request.data.get('orders')
 
         print("Received user_id:", user_id)
@@ -1659,6 +1659,52 @@ class SearchAllCustomer(APIView):
 class SearchOrders(APIView):
     permission_classes = [AllowAny]
 
+    # def post(self, request):
+    #     search_term = request.data.get("search_term", "").strip().lower()
+
+    #     if not search_term:
+    #         return Response({"error": "Search term is required"}, status=400)
+
+    #     filtered_orders = []
+
+    #     # **Step 1: Search in user_id with icontains**
+    #     order_list = Order_products.objects.filter(
+    #         Q(user_id__icontains=search_term)  # Partial match for user_id
+    #     )
+
+    #     # **Step 2: Search in product_items**
+    #     if not order_list.exists(): 
+    #         all_orders = Order_products.objects.all()
+
+    #         for order in all_orders:
+    #             try:
+    #                 product_items = json.loads(order.product_items) if isinstance(order.product_items, str) else order.product_items
+    #             except json.JSONDecodeError:
+    #                 continue  # Skip if JSON is invalid
+
+    #             matching_products = [
+    #                 product for product in product_items
+    #                 if search_term in str(product.get("order_track", "")).lower()
+    #                 or search_term in str(product.get("order_id", "")).lower()
+    #                 or search_term in str(product.get("date", "")).lower()
+    #                 or search_term in str(product.get("username", "")).lower()
+    #             ]
+
+    #             if matching_products:
+    #                 filtered_orders.append({
+    #                     "product_items": matching_products
+    #                 })
+    #     else:
+    #         # Directly add matching orders
+    #         filtered_orders = [
+    #             {"id": order.id, "user_id": order.user_id, "product_items": order.product_items}
+    #             for order in order_list
+    #         ]
+    #     if not filtered_orders:
+    #         return Response({"message": "No matching orders found"}, status=404)
+
+    #     return Response({"orders": filtered_orders}, status=200)
+
     def post(self, request):
         search_term = request.data.get("search_term", "").strip().lower()
 
@@ -1673,7 +1719,7 @@ class SearchOrders(APIView):
         )
 
         # **Step 2: Search in product_items**
-        if not order_list.exists(): 
+        if not order_list.exists():
             all_orders = Order_products.objects.all()
 
             for order in all_orders:
@@ -1681,29 +1727,114 @@ class SearchOrders(APIView):
                     product_items = json.loads(order.product_items) if isinstance(order.product_items, str) else order.product_items
                 except json.JSONDecodeError:
                     continue  # Skip if JSON is invalid
+                cutumer_id =int(order.user_id)
+                cutumer_list = Customer.objects.get(id = cutumer_id)
+                for product_item in product_items:
+                    product_array = []  # To store enriched product details
 
-                matching_products = [
-                    product for product in product_items
-                    if search_term in str(product.get("order_track", "")).lower()
-                    or search_term in str(product.get("order_id", "")).lower()
-                    or search_term in str(product.get("date", "")).lower()
-                    or search_term in str(product.get("username", "")).lower()
-                ]
+                    # Check if this order matches the search term
+                    if (
+                        search_term in str(product_item.get("order_track", "")).lower()
+                        or search_term in str(product_item.get("order_id", "")).lower()
+                        or search_term in str(product_item.get("date", "")).lower()
+                        or search_term in str(product_item.get("username", "")).lower()
+                    ):
+                        # Get all product IDs from this order
+                        product_ids = [product.get("product_id") for product in product_item.get("products", [])]
 
-                if matching_products:
-                    filtered_orders.append({
-                        "product_items": matching_products
-                    })
+                        # Fetch all product details at once (to avoid N+1 queries)
+                        product_details_dict = {
+                            str(prod.id): prod
+                            for prod in Product_list.objects.filter(id__in=product_ids)
+                        }
+
+                        # Map products with additional details
+                        for product in product_item.get("products", []):
+                            product_id = str(product.get("product_id"))
+                            product_details = product_details_dict.get(product_id)
+
+                            if product_details:  # If product exists in the database
+                                product_array.append(
+                                    {
+                                        "product_id": product_id,
+                                        "product_name": product_details.product_name,
+                                        "product_images": product_details.product_images,
+                                        "product_category": product_details.product_category,
+                                        "product_stock": product_details.product_stock,
+                                        "order_status": product.get("order_status"),
+                                        "total_amount": product.get("total_amount"),
+                                        "count": product.get("count")
+                                    }
+                                )
+
+                        # Store order details with enriched product data
+                        order_data = {
+                            "order_id": product_item.get("order_id"),
+                            "username": product_item.get("username"),
+                            "final_amount": product_item.get("final_amount"),
+                            "address": product_item.get("address"),
+                            "date": product_item.get("date"),
+                            "order_track": product_item.get("order_track"),
+                            "order_products": product_array,  # Store fully enriched product details
+                            "profile_image":str(cutumer_list.profile_image) if cutumer_list.profile_image else None
+                        }
+                        filtered_orders.append(order_data)
+
         else:
             # Directly add matching orders
-            filtered_orders = [
-                {"id": order.id, "user_id": order.user_id, "product_items": order.product_items}
-                for order in order_list
-            ]
+            for order in order_list:
+                try:
+                    product_items = json.loads(order.product_items) if isinstance(order.product_items, str) else order.product_items
+                except json.JSONDecodeError:
+                    continue  # Skip if JSON is invalid
+
+                for product_item in product_items:
+                    product_array = []
+
+                    # Get all product IDs from this order
+                    product_ids = [product.get("product_id") for product in product_item.get("products", [])]
+
+                    # Fetch all product details at once (to avoid N+1 queries)
+                    product_details_dict = {
+                        str(prod.id): prod
+                        for prod in Product_list.objects.filter(id__in=product_ids)
+                    }
+
+                    for product in product_item.get("products", []):
+                        product_id = str(product.get("product_id"))
+                        product_details = product_details_dict.get(product_id)
+
+                        if product_details:
+                            product_array.append(
+                                {
+                                    "product_id": product_id,
+                                    "product_name": product_details.product_name,
+                                    "product_images": product_details.product_images,
+                                    "product_category": product_details.product_category,
+                                    "product_stock": product_details.product_stock,
+                                    "order_status": product.get("order_status"),
+                                    "total_amount": product.get("total_amount"),
+                                    "count": product.get("count")
+                                }
+                            )
+
+                    order_data = {
+                        "order_id": product_item.get("order_id"),
+                        "username": product_item.get("username"),
+                        "final_amount": product_item.get("final_amount"),
+                        "address": product_item.get("address"),
+                        "date": product_item.get("date"),
+                        "order_track": product_item.get("order_track"),
+                        "products": product_array
+                    }
+                    filtered_orders.append(order_data)
+
         if not filtered_orders:
             return Response({"message": "No matching orders found"}, status=404)
 
         return Response({"orders": filtered_orders}, status=200)
+
+
 
     
 class Enquiry_send(APIView):
