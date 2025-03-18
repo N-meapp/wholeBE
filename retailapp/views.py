@@ -1892,30 +1892,46 @@ class Top_products(APIView):
 
         for orders in orders_list:
             for product in orders.product_items:
-                for items in product.get('products',[]):
-                    if items['order_status'] == 'accepted':  # Use .get() to avoid KeyError
+                # Convert string to dictionary if necessary
+                if isinstance(product, str):
+                    try:
+                        product = json.loads(product)  # Convert JSON string to dict
+                    except json.JSONDecodeError:
+                        continue  # Skip if JSON is invalid
+                
+                if not isinstance(product, dict):
+                    continue  # Ensure product is a dictionary before proceeding
+
+                for items in product.get('products', []):
+                    if not isinstance(items, dict):
+                        continue  # Ensure items is a dictionary before accessing its keys
+                    
+                    if items.get('order_status') == 'accepted':  
                         product_id = items.get('product_id')
                         print('The product id with status accepted:', product_id)
+
                         if product_id in seen_products:  # Skip if already added
                             continue
+                        
                         try:
                             product_list = Product_list.objects.get(id=product_id)
                         except Product_list.DoesNotExist:
                             continue  # Skip if product not found
-                        seen_products.add(product_id)
                         
+                        seen_products.add(product_id)
+
                         response_data.append({
                             'product_id': product_id,
-                            'product_name':product_list.product_name,
-                            'product_images':product_list.product_images if product_list.product_images else None,
-                            'product_description':product_list.product_description,
-                            'product_discount':product_list.product_discount if product_list.product_discount else None,
-                            'product_category':product_list.product_category,
-                            'prize_range':product_list.prize_range,
-                            'product_stock':product_list.product_stock,
+                            'product_name': product_list.product_name,
+                            'product_images': product_list.product_images if product_list.product_images else None,
+                            'product_description': product_list.product_description,
+                            'product_discount': product_list.product_discount if product_list.product_discount else None,
+                            'product_category': product_list.product_category,
+                            'prize_range': product_list.prize_range,
+                            'product_stock': product_list.product_stock,
                             'order_status': items.get('order_status')
                         })
-        
+
         return Response(response_data)
 
 
