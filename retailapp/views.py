@@ -732,8 +732,6 @@ class Profile_update_custumer(APIView):
             return Response({"error": "Customer not found", "id": id}, status=400)
 
 
-
-    
     def patch(self, request, id):
         try:
             customer = Customer.objects.get(id=id)
@@ -1892,54 +1890,56 @@ class Top_products(APIView):
     def get(self, request):
         orders_list = Order_products.objects.all()
         print("Orders list count:", orders_list.count())
-        response_data = []  # Move response_data outside of the loop
+        response_data = []
         seen_products = set()
 
         for orders in orders_list:
-            print("Product items:", orders.product_items)
-            for product in orders.product_items:
-                # Convert string to dictionary if necessary
-                if isinstance(product, str):
+            product_items = orders.product_items
+            print("Product items:", product_items)
+
+            # Ensure product_items is a dictionary
+            if isinstance(product_items, str):
+                try:
+                    product_items = json.loads(product_items)
+                except json.JSONDecodeError as e:
+                    print("JSON Decode Error:", e, "| Product items:", product_items)
+                    continue
+
+            if not isinstance(product_items, dict):
+                continue  # Ensure product_items is a dictionary before proceeding
+
+            for items in product_items.get('products', []):
+                if not isinstance(items, dict):
+                    continue
+
+                if items.get('order_status') == 'accepted':
+                    product_id = items.get('product_id')
+                    print('The product id with status accepted:', product_id)
+
+                    if product_id in seen_products:
+                        continue
+
                     try:
-                        product = json.loads(product)
-                    except json.JSONDecodeError as e:
-                        print("JSON Decode Error:", e)
-                        continue 
-                
-                if not isinstance(product, dict):
-                    continue  # Ensure product is a dictionary before proceeding
+                        product_list = Product_list.objects.get(id=product_id)
+                    except Product_list.DoesNotExist:
+                        continue
 
-                for items in product.get('products', []):
-                    if not isinstance(items, dict):
-                        continue  # Ensure items is a dictionary before accessing its keys
-                    
-                    if items.get('order_status') == 'accepted':  
-                        product_id = items.get('product_id')
-                        print('The product id with status accepted:', product_id)
+                    seen_products.add(product_id)
 
-                        if product_id in seen_products:  # Skip if already added
-                            continue
-                        
-                        try:
-                            product_list = Product_list.objects.get(id=product_id)
-                        except Product_list.DoesNotExist:
-                            continue  # Skip if product not found
-                        
-                        seen_products.add(product_id)
-
-                        response_data.append({
-                            'product_id': product_id,
-                            'product_name': product_list.product_name,
-                            'product_images': product_list.product_images if product_list.product_images else None,
-                            'product_description': product_list.product_description,
-                            'product_discount': product_list.product_discount if product_list.product_discount else None,
-                            'product_category': product_list.product_category,
-                            'prize_range': product_list.prize_range,
-                            'product_stock': product_list.product_stock,
-                            'order_status': items.get('order_status')
-                        })
+                    response_data.append({
+                        'product_id': product_id,
+                        'product_name': product_list.product_name,
+                        'product_images': product_list.product_images if product_list.product_images else None,
+                        'product_description': product_list.product_description,
+                        'product_discount': product_list.product_discount if product_list.product_discount else None,
+                        'product_category': product_list.product_category,
+                        'prize_range': product_list.prize_range,
+                        'product_stock': product_list.product_stock,
+                        'order_status': items.get('order_status')
+                    })
 
         return Response(response_data)
+
 
 
 
