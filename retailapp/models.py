@@ -39,7 +39,7 @@ class Customer(models.Model):
             self.search_history = []
         if term not in self.search_history:  # Check for duplicates
             self.search_history.append(term)
-            if len(self.search_history) > 5:  # Limit to 5 terms
+            if len(self.search_history) > 2:  # Limit to 5 terms
                 self.search_history.pop(0)  # Remove the oldest term
         self.save()
 
@@ -139,7 +139,7 @@ class Enquiry(models.Model):
 
 
 class Slider_Add(models.Model):
-    slider_image = CloudinaryField('image', folder="slider_images/",blank=True, null=True) 
+    slider_image = CloudinaryField('image', folder="slider_images/")
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
 

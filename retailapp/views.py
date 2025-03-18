@@ -136,13 +136,20 @@ class ProductCategoryView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
-        serializer = ProductCategorySerializer(data=request.data)
-        print("the incoming data",request.data)
-        if serializer.is_valid():
-            serializer.save()
-            print("the saved data is",serializer)
-            return Response(serializer.data, status=201)
-        return Response(serializer.errors, status=400)
+        name = request.data.get('name')
+        image = request.FILES.get('image')
+
+        if image and name:
+            try:
+                # Upload image to Cloudinary
+                upload_result = cloudinary.uploader.upload(image, folder="product_category/")
+                Product_Category.objects.create(category_name=name,image=upload_result['public_id'])
+                return Response({'message':'the product category created'}, status=201)
+            except Exception as e:
+                return Response({'error': f'Upload failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            return Response({'error': 'the fields are compulsory'}, status=404)
+
     
 class Product_categoryUpdate(APIView):
     permission_classes = [AllowAny]
@@ -160,7 +167,7 @@ class Product_categoryUpdate(APIView):
         if image:
             try:
                 cloudinary_response = cloudinary.uploader.upload(image)
-                cloudinary_url = cloudinary_response.get("secure_url")
+                cloudinary_url = cloudinary_response["public_id"]
             except Exception as e:
                 return Response({"error": f"Cloudinary upload failed: {str(e)}"}, status=500)
 
@@ -723,6 +730,7 @@ class Profile_update_custumer(APIView):
             return Response({"error": "Customer not found"},status=400)
 
 
+    
     def patch(self, request, id):
         try:
             customer = Customer.objects.get(id=id)
@@ -734,20 +742,36 @@ class Profile_update_custumer(APIView):
 
         # Handle Address Update Separately (if provided)
         new_address = request_data.pop('address', None)
+        new_image = request.FILES.get('image', None)
 
         if new_address:
             if not isinstance(new_address, dict):
                 return Response({'error': 'Address must be a dictionary'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Retrieve existing address data (ensure it's a dictionary)
-            existing_address = customer.address if isinstance(customer.address, dict) else {}
+            # Ensure existing address is a dictionary
+            try:
+                existing_address = json.loads(customer.address) if isinstance(customer.address, str) else customer.address
+            except json.JSONDecodeError:
+                existing_address = {}
 
-            # Merge new data into existing address
+            # Merge new address into existing address
             existing_address.update(new_address)
 
             # Save the updated address
             customer.address = existing_address
             customer.save()
+
+        if new_image:
+            try:
+                # Upload image to Cloudinary
+                upload_result = cloudinary.uploader.upload(new_image, folder="customerprofile/")
+
+                # Replace old image with new public_id
+                customer.profile_image = upload_result["public_id"]
+                customer.save()
+
+            except Exception as e:
+                return Response({'error': f'Upload failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Proceed with updating other fields if needed
         serializer = Register_custumerSerializer(customer, data=request_data, partial=True)
@@ -757,6 +781,8 @@ class Profile_update_custumer(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+
+
     def delete(self,request,id):
         customer = Customer.objects.get(id=id)
         if customer:
@@ -1073,10 +1099,11 @@ class order_products(APIView):
             return Response({"error": "No User found"}, status=400)
 
         final_list = []
-        customer = Customer.objects.filter(id=user).first()
+        try:
+            customer = Customer.objects.get(id=user)
 
-        if not customer:
-            return Response({"error": "No User found"}, status=404)
+        except Customer.DoesNotExist:
+            return Response({"error": "No customer found"}, status=404)
 
         check_order = Order_products.objects.filter(user_id=user)
         print("The order items with user:", check_order)
@@ -1115,6 +1142,7 @@ class order_products(APIView):
 
             # Prepare order details
             order_list = {
+                "id":order.id,
                 "userid": user,
                 "address": order_data.get("address"),
                 "order_id": order_data.get("order_id"),
@@ -1165,7 +1193,7 @@ class UpdateOrderStatus(APIView):
     def patch(self, request):
         order_reject = request.data.get("rejected_products", [])  # List of rejected product IDs
         user_id = request.data.get("userId")
-        order_id = request.data.get("orderId", 0)  # Convert order_id to integer
+        order_id = str(request.data.get("orderId", 0))  # Convert order_id to integer
         ordertrack = request.data.get("order_track")
 
         print("The request data list:", order_reject, user_id, order_id)
@@ -1189,9 +1217,9 @@ class UpdateOrderStatus(APIView):
         print("Rejected product IDs:", rejected_product_ids)
 
         for item in product_items_list:
-            if item["order_id"] == order_id:  # Ensure order_id comparison is correct
+            if str(item["order_id"]) == order_id:  # Ensure order_id comparison is correct
                 order_found = True
-                item['order_tracking'] = ordertrack
+                item['order_track'] = ordertrack
                 for product in item.get("products", []):
                     proid = int(product.get("product_id", 0))  # Ensure product_id is an integer
                     print("Checking product ID:", proid)
@@ -1254,103 +1282,138 @@ class CancelOrder(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        username = request.data.get('user_id')
-        order_id = request.data.get('order_id')
+        username = request.data.get("user_id")
+        order_id = request.data.get("order_id")
 
-        if not username or not order_id:
+        if not username or order_id is None:
             return Response({"message": "Username and Order ID are required"}, status=400)
 
-        # Ensure order_id is a string for consistent comparison
-        order_id = str(order_id).strip()
+        # Ensure order_id is correctly typed
+        try:
+            order_id = int(order_id)  # Convert to integer for accurate comparison
+        except ValueError:
+            return Response({"message": "Invalid Order ID"}, status=400)
 
-        # Fetch user's order
-        order_list = Order_products.objects.filter(user_id=username).first()
+        # Fetch all orders for the user
+        order_list = Order_products.objects.filter(user_id=username)
 
-        if not order_list:
+        if not order_list.exists():
             return Response({"message": "Order not found"}, status=404)
 
-        if not order_list.product_items:
-            return Response({"message": "No products in order"}, status=404)
+        # Find the specific order containing the order_id in product_items
+        order_to_delete = None
 
-        print("Product Items before cancellation:", order_list.product_items)
+        for order in order_list:
+            for item in order.product_items:
+                if int(item.get("order_id")) == order_id:  # Ensure order_id matches
 
-        # Check if all products in the given order_id have order_status = None
-        all_null_status = True  # Assume all products are cancelable
-        for item in order_list.product_items:
-            if item["order_id"] == order_id:
-                for product in item.get("products", []):
-                    item_status = product.get("order_status")
-                    if item_status is not None and item_status.lower() != "null":
-                        all_null_status = False
-                        break  # Exit early if any product has a valid status
-                break  # Exit after checking relevant order_id
+                    # Check if all products have order_status = "null" or None
+                    all_null_status = all(
+                        product.get("order_status") in [None, "null", "NULL"]
+                        for product in item.get("products", [])
+                    )
 
-        if not all_null_status:
+                    if all_null_status:
+                        order_to_delete = order
+                    break  # Stop checking further once we find the match
+
+            if order_to_delete:
+                break  # Stop checking other orders
+
+        if not order_to_delete:
             return Response({"message": "Order cannot be cancelled or not found"}, status=400)
 
-        # Delete the order if all conditions are met
-        order_list.delete()
-
+        order_to_delete.delete()
         return Response({"message": "Order cancelled successfully"}, status=200)
+
+
     
     def delete(self, request):
-        userid = request.data.get('user_id')
-        orderid = request.data.get('order_id')
-        productids = request.data.get('product_id')  # Expecting a list
+        userid = request.data.get("user_id")
+        orderid = request.data.get("order_id")
+        productid = request.data.get("product_id")  # Expecting an integer
 
         # Validate required fields
-        if not all([userid, orderid, productids]):
-            return Response({'error': 'All fields (user_id, order_id, product_id) are required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if not isinstance(productids, list):
-            return Response({'error': 'product_id must be a list'}, status=status.HTTP_400_BAD_REQUEST)
+        if not all([userid, orderid, productid]):
+            return Response(
+                {"error": "All fields (user_id, order_id, product_id) are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not isinstance(productid, int):  # Ensure product_id is an integer
+            return Response(
+                {"error": "product_id must be an integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             userid = int(userid)
+            orderid = int(orderid)
+            productid = int(productid)  # Ensure product_id is an integer
         except ValueError:
-            return Response({'error': 'Invalid ID format, must be integers'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Invalid ID format, must be integers"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # Fetch the order using user_id
-        try:
-            order = Order_products.objects.filter(user_id=userid)
-        except Order_products.DoesNotExist:
-            return Response({'error': 'Order not found for this user'}, status=status.HTTP_404_NOT_FOUND)
+        # Fetch orders for the user
+        order_list = Order_products.objects.filter(user_id=userid)
 
-        print(f"User ID: {userid}, Order ID: {orderid}, Product IDs: {productids}")
+        if not order_list.exists():
+            return Response(
+                {"error": "Order not found for this user"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        print(f"User ID: {userid}, Order ID: {orderid}, Product ID: {productid}")
 
         updated_product_items = []
-        product_removed = False  
-
+        product_removed = False
 
         # Iterate over product_items to find the correct order
-        for order_item in order:
+        for order_item in order_list:
             if not isinstance(order_item.product_items, list):
-                return Response({'error': 'Invalid data format in product_items'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-            for order_data in order_item.product_items:
-                if order_data.get("order_id") == orderid:
-                    updated_products = []
-                    for product in order_data.get("products", []):
-                        if int(product["product_id"]) in productids and product.get("order_status") == "null":
-                            print(f"Removing Product ID: {product['product_id']}")
-                            product_removed = True
-                            continue  # Skip adding this product (removes it)
-                        updated_products.append(product)
-                        updated_products['final_amount']
+                return Response(
+                    {"error": "Invalid data format in product_items"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
-                    # Update the products list in the order
+            for order_data in order_item.product_items:
+                if int(order_data.get("order_id")) == orderid:
+                    # Remove the product if order_status is "null"
+                    updated_products = [
+                        product
+                        for product in order_data.get("products", [])
+                        if not (int(product["product_id"]) == productid and product.get("order_status") == "null")
+                    ]
+
+                    if len(updated_products) < len(order_data.get("products", [])):
+                        product_removed = True
+
+                    # Recalculate total_amount after filtering products
+                    total_amount = sum(product.get("total_amount", 0) for product in updated_products)
+
+                    # Update the products list and final_amount
                     order_data["products"] = updated_products
+                    order_data["final_amount"] = total_amount if updated_products else 0  # Avoid NoneType errors
 
                 updated_product_items.append(order_data)  # Keep all orders
 
-        # If a product was removed, update the order
-        if product_removed:
-            order_item.product_items = updated_product_items  # Update JSONField
-            order_item.save(update_fields=["product_items"])
-            return Response({'message': 'Product(s) removed successfully'}, status=status.HTTP_200_OK)
+            # If a product was removed, update the order
+            if product_removed:
+                order_item.product_items = updated_product_items  # Update JSONField
+                order_item.save(update_fields=["product_items"])  # Save updates
+                return Response(
+                    {"message": "Product removed successfully", "updated_final_amount": total_amount},
+                    status=status.HTTP_200_OK,
+                )
 
-        return Response({'error': 'Product not found or cannot be deleted'}, status=status.HTTP_400_BAD_REQUEST)
-                
+        return Response(
+            {"error": "Product not found or cannot be deleted"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
 
 
 
@@ -1625,29 +1688,24 @@ class SearchOrders(APIView):
                     or search_term in str(product.get("order_id", "")).lower()
                     or search_term in str(product.get("date", "")).lower()
                     or search_term in str(product.get("username", "")).lower()
-
-
                 ]
 
                 if matching_products:
                     filtered_orders.append({
                         "product_items": matching_products
                     })
-
         else:
             # Directly add matching orders
             filtered_orders = [
                 {"id": order.id, "user_id": order.user_id, "product_items": order.product_items}
                 for order in order_list
             ]
-
         if not filtered_orders:
             return Response({"message": "No matching orders found"}, status=404)
 
         return Response({"orders": filtered_orders}, status=200)
 
     
-
 class Enquiry_send(APIView):
     permission_classes = [AllowAny]
 
@@ -1729,37 +1787,41 @@ class Top_products(APIView):
         
         return Response(response_data)
 
-class slider_Adds(APIView):
+
+
+class slider_Adds(APIView):  # Follow Python naming conventions (CamelCase -> PascalCase)
     permission_classes = [AllowAny]
     
     def post(self, request):
-        image = request.FILES.get('image')  # Ensure the file is received
+        image = request.FILES.get('image')
         if not image:
             return Response({'error': 'The image file is required'}, status=400)
 
         try:
             # Upload image to Cloudinary
-            upload_result = cloudinary.uploader.upload(image, resource_type="image")
-            image_url = upload_result["secure_url"]  # Extract the string URL
-            
-            # Save in the model
-            slider = Slider_Add.objects.create(slider_image=image_url)
+            upload_result = cloudinary.uploader.upload(image, folder="slider_images/")
+
+            # Store only the public_id in the model
+            slider = Slider_Add.objects.create(slider_image=upload_result["public_id"])
 
             return Response({
                 'message': 'Image uploaded successfully',
-                'image_url': image_url
+                'image_url': cloudinary.CloudinaryImage(slider.slider_image).build_url()
             }, status=201)
 
         except Exception as e:
             return Response({'error': f'Upload failed: {str(e)}'}, status=500)
 
+
+        
+
     def get(self, request):
         sliders = Slider_Add.objects.all()
-        for slider in sliders:
-            print(str(slider.slider_image))
+
         if not sliders.exists():
             return Response({'error': 'No images found'}, status=404)
-        
+
+        # Use the serializer to return the correct image URL
         serializer = Slider_Add_Serializer(sliders, many=True)
         return Response(serializer.data, status=200)
 
