@@ -721,13 +721,16 @@ class Home(APIView):
 class Profile_update_custumer(APIView):
     permission_classes = [AllowAny]
 
-    def get(self,request,id):
+    def get(self, request, id):
         try:
             customer = Customer.objects.get(id=id)
             serializer = Register_custumerSerializer(customer)
-            return Response(serializer.data,status=200)
-        except:
-            return Response({"error": "Customer not found"},status=400)
+            response_data = serializer.data
+            response_data["id"] = id  # Attach the ID to the response
+            return Response(response_data, status=200)
+        except Customer.DoesNotExist:
+            return Response({"error": "Customer not found", "id": id}, status=400)
+
 
 
     
@@ -772,11 +775,12 @@ class Profile_update_custumer(APIView):
 
             except Exception as e:
                 return Response({'error': f'Upload failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            
         # Proceed with updating other fields if needed
         serializer = Register_custumerSerializer(customer, data=request_data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1887,17 +1891,20 @@ class Top_products(APIView):
 
     def get(self, request):
         orders_list = Order_products.objects.all()
+        print("Orders list count:", orders_list.count())
         response_data = []  # Move response_data outside of the loop
         seen_products = set()
 
         for orders in orders_list:
+            print("Product items:", orders.product_items)
             for product in orders.product_items:
                 # Convert string to dictionary if necessary
                 if isinstance(product, str):
                     try:
-                        product = json.loads(product)  # Convert JSON string to dict
-                    except json.JSONDecodeError:
-                        continue  # Skip if JSON is invalid
+                        product = json.loads(product)
+                    except json.JSONDecodeError as e:
+                        print("JSON Decode Error:", e)
+                        continue 
                 
                 if not isinstance(product, dict):
                     continue  # Ensure product is a dictionary before proceeding
