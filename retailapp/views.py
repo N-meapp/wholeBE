@@ -1893,7 +1893,7 @@ class Top_products(APIView):
         for orders in orders_list:
             for product in orders.product_items:
                 for items in product.get('products',[]):
-                    if items.get('order_status') == 'accepted':  # Use .get() to avoid KeyError
+                    if items['order_status'] == 'accepted':  # Use .get() to avoid KeyError
                         product_id = items.get('product_id')
                         print('The product id with status accepted:', product_id)
                         if product_id in seen_products:  # Skip if already added
