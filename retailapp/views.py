@@ -1261,24 +1261,29 @@ class Update_tracking(APIView):
 
     def patch(self, request, id):
         order_loc = request.data.get('order_track')  # New status from request
-        
+
         try:
             order_list = Order_products.objects.get(id=id)  # Fetch the order
-        except:
+        except order_list.DoesNotExist:
             return Response({'error': 'No orders found'}, status=status.HTTP_404_NOT_FOUND)
 
-        updated_products = []  
+        if not isinstance(order_list.product_items, dict):
+            return Response({'error': 'Invalid product items format'}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated_products = []
         product_updated = False  # Track if any update happened
 
-        # Iterate over product_items (Assuming it's a list of dicts)
+        # Iterate over product_items (list of dicts)
         for order in order_list.product_items:
-            if order.get('order_track') == 'Accept':
+            order_track = order['order_track']
+            print('the order_track',order_track)
+            if order_track == 'Accept':  # Check for 'Accept' status
                 order['order_track'] = order_loc  # Update status
                 product_updated = True  # Mark as updated
             updated_products.append(order)  
 
         if not product_updated:
-            return Response({'error': 'No products with tracking status "accepted" found'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'No products with tracking status "Accept" found'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Save updated product items back to the model
         order_list.product_items = updated_products  
@@ -1357,7 +1362,6 @@ class CancelOrder(APIView):
 
         try:
             userid = int(userid)
-            orderid = int(orderid)
             productid = int(productid)  # Ensure product_id is an integer
         except ValueError:
             return Response(
