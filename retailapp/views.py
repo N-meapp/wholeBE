@@ -1304,7 +1304,7 @@ class CancelOrder(APIView):
 
         # Ensure order_id is correctly typed
         try:
-            order_id = int(order_id)  # Convert to integer for accurate comparison
+            order_id = str(order_id)  # Convert to integer for accurate comparison
         except ValueError:
             return Response({"message": "Invalid Order ID"}, status=400)
 
@@ -1318,18 +1318,18 @@ class CancelOrder(APIView):
         order_to_delete = None
 
         for order in order_list:
-            for item in order.product_items:
-                if int(item.get("order_id")) == order_id:  # Ensure order_id matches
+            # for item in order.product_items:
+            if order.product_items.get("order_id") == order_id:  # Ensure order_id matches
 
-                    # Check if all products have order_status = "null" or None
-                    all_null_status = all(
-                        product.get("order_status") in [None, "null", "NULL"]
-                        for product in item.get("products", [])
-                    )
+                # Check if all products have order_status = "null" or None
+                all_null_status = all(
+                    product["order_status"] in ["null", "none"]
+                    for product in order.product_items.get("products", [])
+                )
 
-                    if all_null_status:
-                        order_to_delete = order
-                    break  # Stop checking further once we find the match
+                if all_null_status:
+                    order_to_delete = order
+                break  # Stop checking further once we find the match
 
             if order_to_delete:
                 break  # Stop checking other orders
@@ -1385,32 +1385,37 @@ class CancelOrder(APIView):
 
         # Iterate over product_items to find the correct order
         for order_item in order_list:
-            if not isinstance(order_item.product_items, list):
+            if not isinstance(order_item.product_items, dict):
                 return Response(
                     {"error": "Invalid data format in product_items"},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-            for order_data in order_item.product_items:
-                if int(order_data.get("order_id")) == orderid:
-                    # Remove the product if order_status is "null"
-                    updated_products = [
-                        product
-                        for product in order_data.get("products", [])
-                        if not (int(product["product_id"]) == productid and product.get("order_status") == "null")
-                    ]
+            # for order_data in order_item.product_items:
+            if order_item.product_items.get("order_id") == orderid:
+                # Remove the product if order_status is "null"
+                updated_products = [
+                    product
+                    for product in order_item.product_items.get("products", [])
+                    if not (int(product["product_id"]) == productid and product["order_status"] == "null")
+                ]
 
-                    if len(updated_products) < len(order_data.get("products", [])):
-                        product_removed = True
+                if 0 < len(updated_products) < len(order_item.product_items.get("products", [])):
+                    product_removed = True
+                else:
+                    order_item.delete()
+                    return Response(
+                        {"message": "Product removed successfully and order deleted because no items exist"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-                    # Recalculate total_amount after filtering products
-                    total_amount = sum(product.get("total_amount", 0) for product in updated_products)
+                # Recalculate total_amount after filtering products
+                total_amount = sum(product.get("total_amount", 0) for product in updated_products)
+                # Update the products list and final_amount
+                order_item.product_items["products"] = updated_products
+                order_item.product_items["final_amount"] = total_amount if updated_products else 0  # Avoid NoneType errors
 
-                    # Update the products list and final_amount
-                    order_data["products"] = updated_products
-                    order_data["final_amount"] = total_amount if updated_products else 0  # Avoid NoneType errors
-
-                updated_product_items.append(order_data)  # Keep all orders
+            updated_product_items.append(order_item.product_items)  # Keep all orders
 
             # If a product was removed, update the order
             if product_removed:
