@@ -1235,10 +1235,10 @@ class UpdateOrderStatus(APIView):
 
                     if proid in rejected_product_ids:
                         print(f"Rejecting product: {proid}")
-                        product["order_status"] = "rejected"
+                        product["order_status"] = "Reject"
                         updated = True
                     else:
-                        product["order_status"] = "accepted"
+                        product["order_status"] = "Accept"
                         updated = True
         if not order_found:
             return Response({"message": "No orders match"}, status=status.HTTP_400_BAD_REQUEST)
@@ -1272,7 +1272,7 @@ class Update_tracking(APIView):
 
         # Iterate over product_items (Assuming it's a list of dicts)
         for order in order_list.product_items:
-            if order.get('order_track') == 'accepted':
+            if order.get('order_track') == 'Accept':
                 order['order_track'] = order_loc  # Update status
                 product_updated = True  # Mark as updated
             updated_products.append(order)  
@@ -1445,7 +1445,7 @@ class Stock_auto_update(APIView):
                     id_product = items.get('product_id')
                     order_status = items.get('order_status')
 
-                    if str(id_product) == str(product_id) and order_status == "accepted":
+                    if str(id_product) == str(product_id) and order_status == "Accept":
                         count = int(items.get('total_count'))
                         print("Order ID:", id_product, "Count:", count, "Order Status:", order_status)
 
@@ -1537,7 +1537,10 @@ class Total_orders_list(APIView):
         # Process each order
         for order in order_list:
             userid = order.user_id
-            customer = Customer.objects.get(id=userid)
+            try:
+                customer = Customer.objects.get(id=userid)
+            except customer.DoesNotExist:
+                return Response({'error':'the custumer not exist'})
             product_items = order.product_items  # Make sure to access the order's product_items
 
             orderd_list = {
