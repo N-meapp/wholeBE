@@ -1202,59 +1202,65 @@ class UpdateOrderStatus(APIView):
     def patch(self, request):
         order_reject = request.data.get("rejected_products", [])  # List of rejected product IDs
         user_id = request.data.get("userId")
-        order_id = str(request.data.get("orderId", 0))  # Convert order_id to integer
+        order_id = str(request.data.get("orderId", 0))  # Convert order_id to string
         ordertrack = request.data.get("order_track")
 
         print("The request data list:", order_reject, user_id, order_id)
 
-        # Fetch the order related to the user and order_id
-        order = Order_products.objects.filter(user_id=user_id).first()
-        print("The order data:", order)
+        # Fetch orders related to the user
+        orders = Order_products.objects.filter(user_id=user_id)
+        print("The order data:", orders)
 
-        if not order:
+        if not orders.exists():
             return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        # Extracting product items (assuming JSONField or dictionary structure)
-        product_items_list = order.product_items  
-        print("The product_items_list data:", product_items_list)
-
-        updated = False  # Flag to check if any update happens
-        order_found = False  # Flag to check if the order_id exists                  
-
-        # Convert product IDs to integers
         rejected_product_ids = {int(pid) for pid in order_reject}
         print("Rejected product IDs:", rejected_product_ids)
 
-        for item in product_items_list:
-            if str(item["order_id"]) == order_id:  # Ensure order_id comparison is correct
+        updated = False  # Flag to check if any update happens
+        order_found = False  # Flag to check if at least one order_id matches
+        updated_orders = []  # Store updated order items
+
+        for order in orders:
+            product_items_list = order.product_items  
+            print("The product_items_list data:", product_items_list)
+
+            id_order = str(product_items_list.get("order_id"))
+            print("Checking id_order:", id_order)
+
+            if id_order == order_id:  # Ensure order_id matches
                 order_found = True
-                item['order_track'] = ordertrack
-                for product in item.get("products", []):
+                product_items_list['order_track'] = ordertrack  # Update tracking status
+
+                for product in product_items_list.get("products", []):
                     proid = int(product.get("product_id", 0))  # Ensure product_id is an integer
                     print("Checking product ID:", proid)
 
                     if proid in rejected_product_ids:
                         print(f"Rejecting product: {proid}")
                         product["order_status"] = "Reject"
-                        updated = True
                     else:
                         product["order_status"] = "Accept"
-                        updated = True
+
+                    updated = True
+
+                # Save changes if any updates were made
+                if updated:
+                    order.product_items = product_items_list
+                    order.save(update_fields=["product_items"])  # Save only the modified field
+                    print(f"Order {order.id} updated successfully")
+                    updated_orders.append(product_items_list)
+
         if not order_found:
             return Response({"message": "No orders match"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Save changes if any updates were made
         if updated:
-            order.product_items = product_items_list
-            order.save(update_fields=["product_items"])  # Save only the modified field
-            print(f"Order {order.id} updated successfully")
             return Response(
-                {"message": "Order updated successfully", "updated_items": product_items_list},
+                {"message": "Order updated successfully", "updated_items": updated_orders},
                 status=status.HTTP_200_OK
             )
 
         return Response({"message": "No updates were made"}, status=status.HTTP_400_BAD_REQUEST)
-    
 
 class Update_tracking(APIView):
     permission_classes = [AllowAny]
@@ -1264,32 +1270,26 @@ class Update_tracking(APIView):
 
         try:
             order_list = Order_products.objects.get(id=id)  # Fetch the order
-        except order_list.DoesNotExist:
+        except Order_products.DoesNotExist:
             return Response({'error': 'No orders found'}, status=status.HTTP_404_NOT_FOUND)
 
         if not isinstance(order_list.product_items, dict):
             return Response({'error': 'Invalid product items format'}, status=status.HTTP_400_BAD_REQUEST)
 
-        updated_products = []
-        product_updated = False  # Track if any update happened
+        products = order_list.product_items  # Assuming this is a dictionary
+        print('The products:', products)
 
-        # Iterate over product_items (list of dicts)
-        for order in order_list.product_items:
-            order_track = order['order_track']
-            print('the order_track',order_track)
-            if order_track == 'Accept':  # Check for 'Accept' status
-                order['order_track'] = order_loc  # Update status
-                product_updated = True  # Mark as updated
-            updated_products.append(order)  
+        if products['order_track'] == 'Accept':
+            products['order_track'] = order_loc  # Update order tracking
+            order_list.product_items = products  # Assign updated dict
+            order_list.save(update_fields=['product_items'])  # Save changes
 
-        if not product_updated:
-            return Response({'error': 'No products with tracking status "Accept" found'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'message': 'Order status updated successfully', 'updated_product_items': products},
+                            status=status.HTTP_200_OK)
 
-        # Save updated product items back to the model
-        order_list.product_items = updated_products  
-        order_list.save(update_fields=['product_items'])
+        return Response({'error': 'No products with tracking status "Accept" found'},
+                        status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({'message': 'Order status updated successfully', 'updated_product_items': updated_products}, status=status.HTTP_200_OK)
 
 
 class CancelOrder(APIView):
