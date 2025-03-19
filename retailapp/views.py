@@ -30,12 +30,17 @@ SECRET_KEY = "django-insecure-+k#qrwj!@v*ls7(*xs%8!0wfip@6g^e!v!rn&d5y5d7tuj4vm(
 class Register_custumer(APIView):
     permission_classes = [AllowAny]
 
-    def get(self,request):
+    def get(self, request):
         customers = Customer.objects.all()
-        if not customers.exists():  # Check if no customers are present
+        if not customers.exists():
             return Response({"message": "No customers found"}, status=status.HTTP_204_NO_CONTENT)
-    
+        
         serializer = Register_custumerSerializer(customers, many=True)
+        
+        # Ensure each customer entry includes its `id`
+        for customer_data, customer in zip(serializer.data, customers):
+            customer_data["id"] = customer.id  # Attach the `id` field
+
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
@@ -133,6 +138,8 @@ class ProductCategoryView(APIView):
     def get(self, request,id=None):
         categories = Product_Category.objects.all()
         serializer = ProductCategorySerializer(categories, many=True)
+        for categories_data, categories in zip(serializer.data, categories):
+            categories_data["id"] = categories.id  # Attach the `id` field
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
@@ -1507,14 +1514,16 @@ class Total_orders_list(APIView):
             return Response({"error": "No orders found"}, status=404)
 
         final_list = []
-
-        # Fetch all product details once and store them in a dictionary for quick lookup
         product_ids = set()
-        for order in order_list:
-            for data in order.product_items:
-                for product in data.get("products", []):
-                    product_ids.add(product.get("product_id"))
 
+        # Collect product IDs
+        for order in order_list:
+            product_items = order.product_items
+            products = product_items.get("products", [])
+            for data in products:
+                product_ids.add(data["product_id"])
+
+        # Fetch product details in a dictionary
         product_dict = {
             str(product.id): {
                 "product_name": product.product_name,
@@ -1528,49 +1537,49 @@ class Total_orders_list(APIView):
         # Process each order
         for order in order_list:
             userid = order.user_id
-            customer = Customer.objects.get(id = userid)
+            customer = Customer.objects.get(id=userid)
+            product_items = order.product_items  # Make sure to access the order's product_items
 
-            for data in order.product_items:
-                orderd_list = {
-                    "id":order.id,
-                    "userid": userid,
-                    "username":customer.username,
-                    "address": data.get("address"),
-                    "order_id": data.get("order_id"),
-                    "order_track": data.get("order_track"),
-                    "date": data.get("date"),
-                    "final_amount": data.get("final_amount"),
-                    "profile_image": str(customer.profile_image.url) if customer.profile_image else None,
+            orderd_list = {
+                "id": order.id,
+                "userid": order.user_id,
+                "username": customer.username,
+                "address": product_items.get("address"),
+                "order_id": product_items.get("order_id"),
+                "order_track": product_items.get("order_tracking"),
+                "date": product_items.get("date"),
+                "final_amount": product_items.get("final_amount"),
+                "profile_image": str(customer.profile_image.url) if customer.profile_image else None,
+            }
+
+            order_products = []
+            for product in product_items.get("products", []):
+                product_id = str(product.get("product_id"))
+                product_details = product_dict.get(product_id)
+
+                if product_details:
+                    order_products.append(
+                        {
+                            "product_id": product_id,
+                            "product_name": product_details["product_name"],
+                            "product_images": product_details["product_images"],
+                            "product_category": product_details["product_category"],
+                            "product_stock": product_details["product_stock"],
+                            "order_status": product.get("order_status"),
+                            "total_amount": product.get("total_amount"),
+                            "count": product.get("count"),
+                        }
+                    )
+
+            final_list.append(
+                {
+                    "order_details": orderd_list,
+                    "order_products": order_products,
                 }
-
-                order_products = []
-
-                for product in data.get("products", []):
-                    product_id = str(product.get("product_id"))
-                    product_details = product_dict.get(product_id)
-
-                    if product_details:  # If product exists in the dictionary
-                        order_products.append(
-                            {
-                                "product_id": product_id,
-                                "product_name": product_details["product_name"],
-                                "product_images": product_details["product_images"],
-                                "product_category": product_details["product_category"],
-                                "product_stock": product_details["product_stock"],
-                                "order_status": product.get("order_status"),
-                                "total_amount": product.get("total_amount"),
-                                "count":product.get("count")
-                            }
-                        )
-
-                final_list.append(
-                    {
-                        "order_details": orderd_list,
-                        "order_products": order_products,
-                    }
-                )
+            ) 
 
         return Response(final_list, status=200)
+
 
             
 
@@ -1842,19 +1851,20 @@ class SearchOrders(APIView):
 class Enquiry_send(APIView):
     permission_classes = [AllowAny]
 
-    def post(self,request):
-        try:
-            serializer = EnquirySerializer(data = request.data)
-        except Exception as e:
-            return Response({"message":"the data has to be enter"},status=500)
+    def post(self, request):
+        serializer = EnquirySerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data,status=200)
+            return Response(serializer.data, status=201)  # Use 201 for resource creation
         else:
-            return Response({"message":"the enquiry form is not valid check field names or method"},status=500)
+            return Response({"message": "Validation failed", "errors": serializer.errors}, status=400)  # Use 400 for bad request
+
         
     def get(self, request):
-        enquiry = Enquiry.objects.all()
+        try:
+            enquiry = Enquiry.objects.all()
+        except Error:
+            return Response({"error": "No enquiries found"}, status=status.HTTP_404_NOT_FOUND)
         enquiry_list = []
 
         for items in enquiry:
@@ -1977,6 +1987,8 @@ class slider_Adds(APIView):  # Follow Python naming conventions (CamelCase -> Pa
 
         # Use the serializer to return the correct image URL
         serializer = Slider_Add_Serializer(sliders, many=True)
+        for sliders_data, sliders in zip(serializer.data, sliders):
+            sliders_data["id"] = sliders.id  # Attach the `id` field
         return Response(serializer.data, status=200)
 
     # def patch(self, request, id):
