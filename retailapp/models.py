@@ -126,7 +126,7 @@ class Cart_items(models.Model):
 
 class Order_products(models.Model):
     user_id = models.CharField(max_length=20)
-    product_items = models.JSONField(default=list)
+    product_items = models.JSONField(default=dict)
 
     def __str__(self):
         return self.user_id

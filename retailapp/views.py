@@ -23,6 +23,7 @@ import base64
 from cloudinary.uploader import upload
 from cloudinary.exceptions import Error
 import random
+from rest_framework_simplejwt.views import TokenRefreshView
 
 SECRET_KEY = "django-insecure-+k#qrwj!@v*ls7(*xs%8!0wfip@6g^e!v!rn&d5y5d7tuj4vm(" 
 
@@ -72,14 +73,14 @@ class UserLoginView(APIView):
         user = None
         user_type = None
 
-        # Try to get the user from Customer model
+        # Check Customer model
         try:
             user = Customer.objects.get(username=username)
             user_type = "customer"
         except Customer.DoesNotExist:
-            pass  # If not found, continue checking in Administrator
+            pass
 
-        # If not found in Customer, try the Administrator model
+        # Check Administrator model if user is still None
         if user is None:
             try:
                 user = Administrator.objects.get(username=username)
@@ -91,46 +92,43 @@ class UserLoginView(APIView):
         if not check_password(password, user.password):
             return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Generate JWT tokens (Manually create tokens for non-AbstractUser models)
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)  # Proper way to create tokens
 
         profile_image_url = None
         if hasattr(user, "profile_image") and user.profile_image:
             profile_image_url = user.profile_image.url
-        print(type(getattr(user, "profile_image", None)))
-
-        refresh = RefreshToken()
-        refresh.payload["user_id"] = user.id
-        refresh.payload["username"] = user.username
-        refresh.payload["user_type"] = user_type
-
-        access_token = str(refresh.access_token)
-        refresh_token = str(refresh)
 
         return Response({
-            "access_token": access_token,
-            "refresh_token": refresh_token,
+            "access_token": str(refresh.access_token),
+            "refresh_token": str(refresh),
             "message": "Login successful",
             "user_id": user.id,
             "username": user.username,
             "user_type": user_type,
             "profile_img": profile_image_url
         }, status=status.HTTP_200_OK)
-        
+    
 
-
-class Logout_view(APIView):
+class UserLogoutView(APIView):
     permission_classes = [AllowAny]
-    def get(self,request):
-        if "author" in request.session:
-            print('the available seesion :',request.session["author"])
-            request.session.pop('author')
-            print("the session poped",request.session)
-            content = {'message': 'logged out'}
-            return Response(content)
-        else:
-            content = {'message': 'cant logged out'}
-            return Response(content)
 
+    def post(self, request):
+        try:
+            refresh_token = request.data.get("refresh_token")
+            if not refresh_token:
+                return Response({"error": "Refresh token is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            token = RefreshToken(refresh_token)
+            token.blacklist()  # Blacklist the refresh token
+
+            return Response({"message": "Logout successful"}, status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    pass  # Inherits default token refresh behavior
 
 class ProductCategoryView(APIView):
     permission_classes = [AllowAny]
@@ -1278,8 +1276,8 @@ class Update_tracking(APIView):
 
         products = order_list.product_items  # Assuming this is a dictionary
         print('The products:', products)
-
-        if products['order_track'] == 'Accept':
+        tracking_status = ['Accept','Shipped','Packed']
+        if products['order_track'] in tracking_status:
             products['order_track'] = order_loc  # Update order tracking
             order_list.product_items = products  # Assign updated dict
             order_list.save(update_fields=['product_items'])  # Save changes
