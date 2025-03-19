@@ -1260,7 +1260,7 @@ class Update_tracking(APIView):
     permission_classes = [AllowAny]
 
     def patch(self, request, id):
-        order_loc = request.data.get('order_status')  # New status from request
+        order_loc = request.data.get('order_track')  # New status from request
         
         try:
             order_list = Order_products.objects.get(id=id)  # Fetch the order
