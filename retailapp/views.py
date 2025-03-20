@@ -100,9 +100,9 @@ class UserLoginView(APIView):
             profile_image_url = user.profile_image.url
 
         return Response({
+            "message": "Login successful",
             "access_token": str(refresh.access_token),
             "refresh_token": str(refresh),
-            "message": "Login successful",
             "user_id": user.id,
             "username": user.username,
             "user_type": user_type,
@@ -1543,7 +1543,7 @@ class Total_orders_list(APIView):
                 "username": customer.username,
                 "address": product_items.get("address"),
                 "order_id": product_items.get("order_id"),
-                "order_track": product_items.get("order_tracking"),
+                "order_track": product_items.get("order_track"),
                 "date": product_items.get("date"),
                 "final_amount": product_items.get("final_amount"),
                 "profile_image": str(customer.profile_image.url) if customer.profile_image else None,
