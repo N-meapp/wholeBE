@@ -1368,10 +1368,23 @@ class CancelOrder(APIView):
         for order_item in order_list:
             if order_item.product_items.get("order_id") == orderid:
                 original_products = order_item.product_items.get("products", [])
-                
+
                 # Check if the product exists in the order
-                if any(int(product["product_id"]) == productid for product in original_products):
-                    product_found = True
+                for product in original_products:
+                    if int(product["product_id"]) == productid:
+                        product_found = True
+                        # If order_status is not "null", return an error message
+                        if product["order_status"] != "null":
+                            return Response(
+                                {"message": "Order for this product is Accepted"},
+                                status=status.HTTP_400_BAD_REQUEST,  # Change to 400 to indicate an error
+                            )
+
+                if not product_found:
+                    return Response(
+                        {"error": "Product not found in the specified order"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 # Remove the product if order_status is "null"
                 updated_products = [
@@ -1399,13 +1412,6 @@ class CancelOrder(APIView):
                         {"message": "Product removed successfully and order deleted because no items exist"},
                         status=status.HTTP_200_OK
                     )
-
-        # If no matching product was found, return an error
-        if not product_found:
-            return Response(
-                {"error": "Product not found in the specified order"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
         return Response(
             {"error": "Product not found or cannot be deleted"},
