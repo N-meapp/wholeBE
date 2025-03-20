@@ -1456,7 +1456,8 @@ class Stock_auto_update(APIView):
 
 
 class Total_counts_dashboard(APIView):
-    permission_classes = [AllowAny]
+    authentication_classes = []  
+    permission_classes = [IsAuthenticated] 
 
     def get(self,request):
         active_customer_count = Customer.objects.filter(status=True).count()
