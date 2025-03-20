@@ -1375,11 +1375,11 @@ class CancelOrder(APIView):
 
         # Iterate over product_items to find the correct order
         for order_item in order_list:
-            if not isinstance(order_item.product_items, dict):
-                return Response(
-                    {"error": "Invalid data format in product_items"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+            # if not isinstance(order_item.product_items, dict):
+            #     return Response(
+            #         {"error": "Invalid data format in product_items"},
+            #         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            #     )
 
             # for order_data in order_item.product_items:
             if order_item.product_items.get("order_id") == orderid:
