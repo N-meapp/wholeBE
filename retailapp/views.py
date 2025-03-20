@@ -1331,7 +1331,6 @@ class CancelOrder(APIView):
         return Response({"message": "Order cancelled successfully"}, status=200)
 
 
-    
     def delete(self, request):
         userid = request.data.get("user_id")
         orderid = request.data.get("order_id")
@@ -1341,12 +1340,6 @@ class CancelOrder(APIView):
         if not all([userid, orderid, productid]):
             return Response(
                 {"error": "All fields (user_id, order_id, product_id) are required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not isinstance(productid, int):  # Ensure product_id is an integer
-            return Response(
-                {"error": "product_id must be an integer"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -1370,57 +1363,56 @@ class CancelOrder(APIView):
 
         print(f"User ID: {userid}, Order ID: {orderid}, Product ID: {productid}")
 
-        updated_product_items = []
-        product_removed = False
+        product_found = False  # Track whether product_id exists in the order
 
-        # Iterate over product_items to find the correct order
         for order_item in order_list:
-            # if not isinstance(order_item.product_items, dict):
-            #     return Response(
-            #         {"error": "Invalid data format in product_items"},
-            #         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            #     )
-
-            # for order_data in order_item.product_items:
             if order_item.product_items.get("order_id") == orderid:
+                original_products = order_item.product_items.get("products", [])
+                
+                # Check if the product exists in the order
+                if any(int(product["product_id"]) == productid for product in original_products):
+                    product_found = True
+
                 # Remove the product if order_status is "null"
                 updated_products = [
                     product
-                    for product in order_item.product_items.get("products", [])
+                    for product in original_products
                     if not (int(product["product_id"]) == productid and product["order_status"] == "null")
                 ]
 
-                if 0 < len(updated_products) < len(order_item.product_items.get("products", [])):
-                    product_removed = True
-                else:
+                if updated_products:  # If products remain, update the order
+                    total_amount = sum(product.get("total_amount", 0) for product in updated_products)
+
+                    order_item.product_items["products"] = updated_products
+                    order_item.product_items["final_amount"] = total_amount
+
+                    order_item.save(update_fields=["product_items"])
+
+                    return Response(
+                        {"message": "Product removed successfully", "updated_final_amount": total_amount},
+                        status=status.HTTP_200_OK,
+                    )
+
+                else:  # If no products remain, delete the order
                     order_item.delete()
                     return Response(
                         {"message": "Product removed successfully and order deleted because no items exist"},
-                        status=200
+                        status=status.HTTP_200_OK
                     )
 
-                # Recalculate total_amount after filtering products
-                total_amount = sum(product.get("total_amount", 0) for product in updated_products)
-                # Update the products list and final_amount
-                order_item.product_items["products"] = updated_products
-                order_item.product_items["final_amount"] = total_amount if updated_products else 0  # Avoid NoneType errors
-
-            updated_product_items.append(order_item.product_items)  # Keep all orders
-
-            # If a product was removed, update the order
-            if product_removed:
-                order_item.product_items = updated_product_items  # Update JSONField
-                order_item.save(update_fields=["product_items"])  # Save updates
-                return Response(
-                    {"message": "Product removed successfully", "updated_final_amount": total_amount},
-                    status=status.HTTP_200_OK,
-                )
+        # If no matching product was found, return an error
+        if not product_found:
+            return Response(
+                {"error": "Product not found in the specified order"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         return Response(
             {"error": "Product not found or cannot be deleted"},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    
 
 
 
@@ -1742,56 +1734,56 @@ class SearchOrders(APIView):
                     continue  # Skip if JSON is invalid
                 cutumer_id =int(order.user_id)
                 cutumer_list = Customer.objects.get(id = cutumer_id)
-                for product_item in product_items:
-                    product_array = []  # To store enriched product details
+                # for product_item in product_items:
+                product_array = []  # To store enriched product details
 
-                    # Check if this order matches the search term
-                    if (
-                        search_term in str(product_item.get("order_track", "")).lower()
-                        or search_term in str(product_item.get("order_id", "")).lower()
-                        or search_term in str(product_item.get("date", "")).lower()
-                        or search_term in str(product_item.get("username", "")).lower()
-                    ):
-                        # Get all product IDs from this order
-                        product_ids = [product.get("product_id") for product in product_item.get("products", [])]
+                # Check if this order matches the search term
+                if (
+                    search_term in str(product_items.get("order_track", "")).lower()
+                    or search_term in str(product_items.get("order_id", "")).lower()
+                    or search_term in str(product_items.get("date", "")).lower()
+                    or search_term in str(product_items.get("username", "")).lower()
+                ):
+                    # Get all product IDs from this order
+                    product_ids = [product.get("product_id") for product in product_item.get("products", [])]
 
-                        # Fetch all product details at once (to avoid N+1 queries)
-                        product_details_dict = {
-                            str(prod.id): prod
-                            for prod in Product_list.objects.filter(id__in=product_ids)
-                        }
+                    # Fetch all product details at once (to avoid N+1 queries)
+                    product_details_dict = {
+                        str(prod.id): prod
+                        for prod in Product_list.objects.filter(id__in=product_ids)
+                    }
 
-                        # Map products with additional details
-                        for product in product_item.get("products", []):
-                            product_id = str(product.get("product_id"))
-                            product_details = product_details_dict.get(product_id)
+                    # Map products with additional details
+                    for product in product_item.get("products", []):
+                        product_id = str(product.get("product_id"))
+                        product_details = product_details_dict.get(product_id)
 
-                            if product_details:  # If product exists in the database
-                                product_array.append(
-                                    {
-                                        "product_id": product_id,
-                                        "product_name": product_details.product_name,
-                                        "product_images": product_details.product_images,
-                                        "product_category": product_details.product_category,
-                                        "product_stock": product_details.product_stock,
-                                        "order_status": product.get("order_status"),
-                                        "total_amount": product.get("total_amount"),
-                                        "count": product.get("count")
-                                    }
-                                )
+                        if product_details:  # If product exists in the database
+                            product_array.append(
+                                {
+                                    "product_id": product_id,
+                                    "product_name": product_details.product_name,
+                                    "product_images": product_details.product_images,
+                                    "product_category": product_details.product_category,
+                                    "product_stock": product_details.product_stock,
+                                    "order_status": product.get("order_status"),
+                                    "total_amount": product.get("total_amount"),
+                                    "count": product.get("count")
+                                }
+                            )
 
-                        # Store order details with enriched product data
-                        order_data = {
-                            "order_id": product_item.get("order_id"),
-                            "username": product_item.get("username"),
-                            "final_amount": product_item.get("final_amount"),
-                            "address": product_item.get("address"),
-                            "date": product_item.get("date"),
-                            "order_track": product_item.get("order_track"),
-                            "order_products": product_array,  # Store fully enriched product details
-                            "profile_image":str(cutumer_list.profile_image) if cutumer_list.profile_image else None
-                        }
-                        filtered_orders.append(order_data)
+                    # Store order details with enriched product data
+                    order_data = {
+                        "order_id": product_item.get("order_id"),
+                        "username": product_item.get("username"),
+                        "final_amount": product_item.get("final_amount"),
+                        "address": product_item.get("address"),
+                        "date": product_item.get("date"),
+                        "order_track": product_item.get("order_track"),
+                        "order_products": product_array,  # Store fully enriched product details
+                        "profile_image":str(cutumer_list.profile_image) if cutumer_list.profile_image else None
+                    }
+                    filtered_orders.append(order_data)
 
         else:
             # Directly add matching orders
