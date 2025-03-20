@@ -1421,9 +1421,6 @@ class CancelOrder(APIView):
     
 
 
-
-
-
 class Stock_auto_update(APIView):
     permission_classes = [AllowAny]
 
@@ -1739,7 +1736,7 @@ class SearchOrders(APIView):
                 except json.JSONDecodeError:
                     continue  # Skip if JSON is invalid
                 cutumer_id =int(order.user_id)
-                cutumer_list = Customer.objects.get(id = cutumer_id)
+                cutumer_list = Customer.objects.get(id=cutumer_id)
                 # for product_item in product_items:
                 product_array = []  # To store enriched product details
 
