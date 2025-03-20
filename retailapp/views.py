@@ -27,6 +27,15 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 SECRET_KEY = "django-insecure-+k#qrwj!@v*ls7(*xs%8!0wfip@6g^e!v!rn&d5y5d7tuj4vm(" 
 
+from rest_framework.permissions import BasePermission
+
+class IsCustomer(BasePermission):
+    def has_permission(self, request, view):
+        return request.user and hasattr(request.user, "customer")
+
+class IsAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return request.user and hasattr(request.user, "administrator")
 
 class Register_custumer(APIView):
     permission_classes = [AllowAny]
@@ -1261,7 +1270,7 @@ class UpdateOrderStatus(APIView):
         return Response({"message": "No updates were made"}, status=status.HTTP_400_BAD_REQUEST)
 
 class Update_tracking(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsAdmin]
 
     def patch(self, request, id):
         order_loc = request.data.get('order_track')  # New status from request
@@ -1456,9 +1465,9 @@ class Stock_auto_update(APIView):
 
 
 class Total_counts_dashboard(APIView):
-    authentication_classes = []  
-    permission_classes = [IsAuthenticated] 
 
+    permission_classes = [AllowAny]
+ 
     def get(self,request):
         active_customer_count = Customer.objects.filter(status=True).count()
         print("Active customers:", active_customer_count)
@@ -1893,6 +1902,7 @@ class Enquiry_send(APIView):
 
 
 class Top_products(APIView):
+
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -1952,7 +1962,7 @@ class Top_products(APIView):
 
 
 class slider_Adds(APIView):  # Follow Python naming conventions (CamelCase -> PascalCase)
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsAdmin]
     
     def post(self, request):
         image = request.FILES.get('image')
