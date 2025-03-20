@@ -1736,7 +1736,7 @@ class SearchOrders(APIView):
                 except json.JSONDecodeError:
                     continue  # Skip if JSON is invalid
                 cutumer_id =int(order.user_id)
-                cutumer_list = Customer.objects.get(id=cutumer_id)
+                cutumer_list = Customer.objects.get(id =cutumer_id)
                 # for product_item in product_items:
                 product_array = []  # To store enriched product details
 
@@ -1748,7 +1748,7 @@ class SearchOrders(APIView):
                     or search_term in str(product_items.get("username", "")).lower()
                 ):
                     # Get all product IDs from this order
-                    product_ids = [product.get("product_id") for product in product_item.get("products", [])]
+                    product_ids = [product["product_id"] for product in product_item.get("products", [])]
 
                     # Fetch all product details at once (to avoid N+1 queries)
                     product_details_dict = {
