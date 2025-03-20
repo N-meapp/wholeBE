@@ -1285,7 +1285,7 @@ class Update_tracking(APIView):
             return Response({'message': 'Order status updated successfully', 'updated_product_items': products},
                             status=status.HTTP_200_OK)
 
-        return Response({'error': 'No products with tracking status "Accept" found'},
+        return Response({'error': 'No products with tracking status found'},
                         status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -1297,14 +1297,10 @@ class CancelOrder(APIView):
         username = request.data.get("user_id")
         order_id = request.data.get("order_id")
 
-        if not username or order_id is None:
+        if not username or not order_id:
             return Response({"message": "Username and Order ID are required"}, status=400)
 
-        # Ensure order_id is correctly typed
-        try:
-            order_id = str(order_id)  # Convert to integer for accurate comparison
-        except ValueError:
-            return Response({"message": "Invalid Order ID"}, status=400)
+        order_id = str(order_id)  # Ensure order_id is a string for accurate comparison
 
         # Fetch all orders for the user
         order_list = Order_products.objects.filter(user_id=username)
@@ -1316,21 +1312,17 @@ class CancelOrder(APIView):
         order_to_delete = None
 
         for order in order_list:
-            # for item in order.product_items:
             if order.product_items.get("order_id") == order_id:  # Ensure order_id matches
 
                 # Check if all products have order_status = "null" or None
                 all_null_status = all(
-                    product["order_status"] in ["null", "none"]
+                    str(product.get("order_status", "")).lower() in ["null", "none"]
                     for product in order.product_items.get("products", [])
                 )
 
                 if all_null_status:
                     order_to_delete = order
-                break  # Stop checking further once we find the match
-
-            if order_to_delete:
-                break  # Stop checking other orders
+                    break  # Stop checking further once a deletable order is found
 
         if not order_to_delete:
             return Response({"message": "Order cannot be cancelled or not found"}, status=400)
@@ -1404,7 +1396,7 @@ class CancelOrder(APIView):
                     order_item.delete()
                     return Response(
                         {"message": "Product removed successfully and order deleted because no items exist"},
-                        status=status.HTTP_400_BAD_REQUEST,
+                        status=200
                     )
 
                 # Recalculate total_amount after filtering products
