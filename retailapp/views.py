@@ -111,9 +111,20 @@ class Register_custumer(APIView):
 #             "profile_img": profile_image_url
 #         }, status=status.HTTP_200_OK)
     
+def get_tokens_for_user(user):
+    """Manually generate JWT tokens for custom user models."""
+    refresh = RefreshToken()
+    refresh["user_id"] = user.id
+    refresh["username"] = user.username
+    refresh["user_type"] = "customer" if isinstance(user, Customer) else "admin"
+    
+    return {
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+    }
 
 class UserLoginView(APIView):
-    permission_classes = []
+    permission_classes = []  # No authentication required for login
 
     def post(self, request):
         username = request.data.get("username")
@@ -138,17 +149,18 @@ class UserLoginView(APIView):
         if not check_password(password, user.password):
             return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
+        # Generate JWT tokens manually
+        tokens = get_tokens_for_user(user)
 
         return Response({
             "message": "Login successful",
-            "access_token": str(refresh.access_token),
-            "refresh_token": str(refresh),
+            "access_token": tokens["access"],
+            "refresh_token": tokens["refresh"],
             "user_id": user.id,
             "username": user.username,
             "user_type": user_type,
         }, status=status.HTTP_200_OK)
+    
 
 
 class UserLogoutView(APIView):
@@ -1496,7 +1508,7 @@ class Stock_auto_update(APIView):
 
 class Total_counts_dashboard(APIView):
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
  
     def get(self,request):
         active_customer_count = Customer.objects.filter(status=True).count()
@@ -1818,13 +1830,14 @@ class SearchOrders(APIView):
                     # Store order details with enriched product data
                     order_data = {
                         "order_id": product_items.get("order_id"),
-                        "username": product_items.get("username"),
+                        "username": cutumer_list.username,
+                        "profile_image":str(cutumer_list.profile_image) if cutumer_list.profile_image else None,
                         "final_amount": product_items.get("final_amount"),
                         "address": product_items.get("address"),
                         "date": product_items.get("date"),
                         "order_track": product_items.get("order_track"),
                         "order_products": product_array,  # Store fully enriched product details
-                        "profile_image":str(cutumer_list.profile_image) if cutumer_list.profile_image else None
+                        
                     }
                     filtered_orders.append(order_data)
 
