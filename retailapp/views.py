@@ -27,15 +27,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 SECRET_KEY = "django-insecure-+k#qrwj!@v*ls7(*xs%8!0wfip@6g^e!v!rn&d5y5d7tuj4vm(" 
 
-from rest_framework.permissions import BasePermission
-
-class IsCustomer(BasePermission):
-    def has_permission(self, request, view):
-        return request.user and hasattr(request.user, "customer")
-
-class IsAdmin(BasePermission):
-    def has_permission(self, request, view):
-        return request.user and hasattr(request.user, "administrator")
+class CustomTokenRefreshView(TokenRefreshView):
+    serializer_class = CustomTokenRefreshSerializer
 
 class Register_custumer(APIView):
     permission_classes = [AllowAny]
@@ -72,8 +65,55 @@ class Register_custumer(APIView):
         return Response({"message": "User registered successfully"}, status=status.HTTP_201_CREATED)
 
 
+# class UserLoginView(APIView):
+#     permission_classes = [AllowAny]
+
+#     def post(self, request):
+#         username = request.data.get("username")
+#         password = request.data.get("password")
+
+#         user = None
+#         user_type = None
+
+#         # Check Customer model
+#         try:
+#             user = Customer.objects.get(username=username)
+#             user_type = "customer"
+#         except Customer.DoesNotExist:
+#             pass
+
+#         # Check Administrator model if user is still None
+#         if user is None:
+#             try:
+#                 user = Administrator.objects.get(username=username)
+#                 user_type = "admin"
+#             except Administrator.DoesNotExist:
+#                 return Response({"error": "Invalid username or password"}, status=status.HTTP_401_UNAUTHORIZED)
+
+#         # Check password
+#         if not check_password(password, user.password):
+#             return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+#         # Generate JWT tokens
+#         refresh = RefreshToken.for_user(user)  # Proper way to create tokens
+
+#         profile_image_url = None
+#         if hasattr(user, "profile_image") and user.profile_image:
+#             profile_image_url = user.profile_image.url
+
+#         return Response({
+#             "message": "Login successful",
+#             "access_token": str(refresh.access_token),
+#             "refresh_token": str(refresh),
+#             "user_id": user.id,
+#             "username": user.username,
+#             "user_type": user_type,
+#             "profile_img": profile_image_url
+#         }, status=status.HTTP_200_OK)
+    
+
 class UserLoginView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = []
 
     def post(self, request):
         username = request.data.get("username")
@@ -82,15 +122,12 @@ class UserLoginView(APIView):
         user = None
         user_type = None
 
-        # Check Customer model
+        # Try fetching from Customer first
         try:
             user = Customer.objects.get(username=username)
             user_type = "customer"
         except Customer.DoesNotExist:
-            pass
-
-        # Check Administrator model if user is still None
-        if user is None:
+            # Try Administrator next
             try:
                 user = Administrator.objects.get(username=username)
                 user_type = "admin"
@@ -102,11 +139,7 @@ class UserLoginView(APIView):
             return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
         # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)  # Proper way to create tokens
-
-        profile_image_url = None
-        if hasattr(user, "profile_image") and user.profile_image:
-            profile_image_url = user.profile_image.url
+        refresh = RefreshToken.for_user(user)
 
         return Response({
             "message": "Login successful",
@@ -115,9 +148,8 @@ class UserLoginView(APIView):
             "user_id": user.id,
             "username": user.username,
             "user_type": user_type,
-            "profile_img": profile_image_url
         }, status=status.HTTP_200_OK)
-    
+
 
 class UserLogoutView(APIView):
     permission_classes = [AllowAny]
@@ -136,8 +168,6 @@ class UserLogoutView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class CustomTokenRefreshView(TokenRefreshView):
-    pass  # Inherits default token refresh behavior
 
 class ProductCategoryView(APIView):
     permission_classes = [AllowAny]
@@ -1270,7 +1300,7 @@ class UpdateOrderStatus(APIView):
         return Response({"message": "No updates were made"}, status=status.HTTP_400_BAD_REQUEST)
 
 class Update_tracking(APIView):
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated]
 
     def patch(self, request, id):
         order_loc = request.data.get('order_track')  # New status from request
@@ -1758,7 +1788,7 @@ class SearchOrders(APIView):
                     or search_term in str(product_items.get("username", "")).lower()
                 ):
                     # Get all product IDs from this order
-                    product_ids = [product["product_id"] for product in product_item.get("products", [])]
+                    product_ids = [product["product_id"] for product in product_items.get("products", [])]
 
                     # Fetch all product details at once (to avoid N+1 queries)
                     product_details_dict = {
@@ -1767,7 +1797,7 @@ class SearchOrders(APIView):
                     }
 
                     # Map products with additional details
-                    for product in product_item.get("products", []):
+                    for product in product_items.get("products", []):
                         product_id = str(product.get("product_id"))
                         product_details = product_details_dict.get(product_id)
 
@@ -1787,12 +1817,12 @@ class SearchOrders(APIView):
 
                     # Store order details with enriched product data
                     order_data = {
-                        "order_id": product_item.get("order_id"),
-                        "username": product_item.get("username"),
-                        "final_amount": product_item.get("final_amount"),
-                        "address": product_item.get("address"),
-                        "date": product_item.get("date"),
-                        "order_track": product_item.get("order_track"),
+                        "order_id": product_items.get("order_id"),
+                        "username": product_items.get("username"),
+                        "final_amount": product_items.get("final_amount"),
+                        "address": product_items.get("address"),
+                        "date": product_items.get("date"),
+                        "order_track": product_items.get("order_track"),
                         "order_products": product_array,  # Store fully enriched product details
                         "profile_image":str(cutumer_list.profile_image) if cutumer_list.profile_image else None
                     }
@@ -1806,46 +1836,46 @@ class SearchOrders(APIView):
                 except json.JSONDecodeError:
                     continue  # Skip if JSON is invalid
 
-                for product_item in product_items:
-                    product_array = []
+                # for product_item in product_items:
+                product_array = []
 
-                    # Get all product IDs from this order
-                    product_ids = [product.get("product_id") for product in product_item.get("products", [])]
+                # Get all product IDs from this order
+                product_ids = [product.get("product_id") for product in product_items.get("products", [])]
 
-                    # Fetch all product details at once (to avoid N+1 queries)
-                    product_details_dict = {
-                        str(prod.id): prod
-                        for prod in Product_list.objects.filter(id__in=product_ids)
-                    }
+                # Fetch all product details at once (to avoid N+1 queries)
+                product_details_dict = {
+                    str(prod.id): prod
+                    for prod in Product_list.objects.filter(id__in=product_ids)
+                }
 
-                    for product in product_item.get("products", []):
-                        product_id = str(product.get("product_id"))
-                        product_details = product_details_dict.get(product_id)
+                for product in product_items.get("products", []):
+                    product_id = str(product.get("product_id"))
+                    product_details = product_details_dict.get(product_id)
 
-                        if product_details:
-                            product_array.append(
-                                {
-                                    "product_id": product_id,
-                                    "product_name": product_details.product_name,
-                                    "product_images": product_details.product_images,
-                                    "product_category": product_details.product_category,
-                                    "product_stock": product_details.product_stock,
-                                    "order_status": product.get("order_status"),
-                                    "total_amount": product.get("total_amount"),
-                                    "count": product.get("count")
-                                }
-                            )
+                    if product_details:
+                        product_array.append(
+                            {
+                                "product_id": product_id,
+                                "product_name": product_details.product_name,
+                                "product_images": product_details.product_images,
+                                "product_category": product_details.product_category,
+                                "product_stock": product_details.product_stock,
+                                "order_status": product.get("order_status"),
+                                "total_amount": product.get("total_amount"),
+                                "count": product.get("count")
+                            }
+                        )
 
-                    order_data = {
-                        "order_id": product_item.get("order_id"),
-                        "username": product_item.get("username"),
-                        "final_amount": product_item.get("final_amount"),
-                        "address": product_item.get("address"),
-                        "date": product_item.get("date"),
-                        "order_track": product_item.get("order_track"),
-                        "products": product_array
-                    }
-                    filtered_orders.append(order_data)
+                order_data = {
+                    "order_id": product_items.get("order_id"),
+                    "username": product_items.get("username"),
+                    "final_amount": product_items.get("final_amount"),
+                    "address": product_items.get("address"),
+                    "date": product_items.get("date"),
+                    "order_track": product_items.get("order_track"),
+                    "products": product_array
+                }
+                filtered_orders.append(order_data)
 
         if not filtered_orders:
             return Response({"message": "No matching orders found"}, status=404)
@@ -1962,7 +1992,7 @@ class Top_products(APIView):
 
 
 class slider_Adds(APIView):  # Follow Python naming conventions (CamelCase -> PascalCase)
-    permission_classes = [IsAuthenticated, IsAdmin]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         image = request.FILES.get('image')

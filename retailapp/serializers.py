@@ -65,3 +65,28 @@ class Slider_Add_Serializer(serializers.ModelSerializer):
 
     def get_slider_image(self, obj):
         return str(obj.slider_image)
+    
+
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.exceptions import AuthenticationFailed
+
+class CustomTokenRefreshSerializer(TokenRefreshSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+
+        # Extract user from refresh token
+        refresh = RefreshToken(attrs["refresh"])
+        user_id = refresh["user_id"]
+
+        # Check in both models
+        user = None
+        if Customer.objects.filter(id=user_id).exists():
+            user = Customer.objects.get(id=user_id)
+        elif Administrator.objects.filter(id=user_id).exists():
+            user = Administrator.objects.get(id=user_id)
+
+        if user is None:
+            raise AuthenticationFailed("User not found or deleted.")
+
+        return data

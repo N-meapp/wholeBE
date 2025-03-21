@@ -148,11 +148,11 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
-    'SLIDING_TOKEN_LIFETIME': timedelta(days=30),
-    'SLIDING_TOKEN_REFRESH_LIFETIME_LATE_USER': timedelta(days=1),
-    'SLIDING_TOKEN_LIFETIME_LATE_USER': timedelta(days=30),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),  # Change to 1 hour if needed
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),  # Users stay logged in for a week
+    "ROTATE_REFRESH_TOKENS": True,  # Generates new refresh token on every refresh
+    "BLACKLIST_AFTER_ROTATION": True,  # Prevents old refresh tokens from being reused
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
 
