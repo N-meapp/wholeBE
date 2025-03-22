@@ -27,8 +27,6 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 SECRET_KEY = "django-insecure-+k#qrwj!@v*ls7(*xs%8!0wfip@6g^e!v!rn&d5y5d7tuj4vm(" 
 
-class CustomTokenRefreshView(TokenRefreshView):
-    serializer_class = CustomTokenRefreshSerializer
 
 class Register_custumer(APIView):
     permission_classes = [AllowAny]
@@ -111,17 +109,7 @@ class Register_custumer(APIView):
 #             "profile_img": profile_image_url
 #         }, status=status.HTTP_200_OK)
     
-def get_tokens_for_user(user):
-    """Manually generate JWT tokens for custom user models."""
-    refresh = RefreshToken()
-    refresh["user_id"] = user.id
-    refresh["username"] = user.username
-    refresh["user_type"] = "customer" if isinstance(user, Customer) else "admin"
-    
-    return {
-        "access": str(refresh.access_token),
-        "refresh": str(refresh),
-    }
+
 
 class UserLoginView(APIView):
     permission_classes = []  # No authentication required for login
@@ -160,7 +148,21 @@ class UserLoginView(APIView):
             "username": user.username,
             "user_type": user_type,
         }, status=status.HTTP_200_OK)
+
+
+
+def get_tokens_for_user(user):
+    """Manually generate JWT tokens for custom user models."""
+    refresh = RefreshToken()
+    refresh["user_id"] = user.id
+    refresh["username"] = user.username
+    refresh["user_type"] = "customer" if isinstance(user, Customer) else "admin"
     
+    return {
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+    }
+
 
 
 class UserLogoutView(APIView):
