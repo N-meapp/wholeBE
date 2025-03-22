@@ -14,7 +14,7 @@ import cloudinary.uploader
 
 class Customer(models.Model):
     username = models.CharField(max_length=30, unique=True)
-    password = models.CharField(max_length=128)  # Increased length for hashed passwords
+    password = models.CharField(max_length=128,blank=True)  # Increased length for hashed passwords
     profile_image = CloudinaryField('image', folder="customerprofile/",blank=True, null=True , default ="https://res.cloudinary.com/djedeaw0l/image/upload/v1740995374/profile_fub4k1.jpg")
     discount_individual = models.CharField(max_length=20, blank=True)
     search_history = models.JSONField(default=list, blank=True)
