@@ -1252,7 +1252,7 @@ class UpdateOrderStatus(APIView):
         order_reject = request.data.get("rejected_products", [])  # List of rejected product IDs
         user_id = request.data.get("userId")
         order_id = str(request.data.get("orderId", 0))  # Convert order_id to string
-        ordertrack = request.data.get("order_track")
+        # ordertrack = request.data.get("order_track")
 
         print("The request data list:", order_reject, user_id, order_id)
 
@@ -1279,7 +1279,7 @@ class UpdateOrderStatus(APIView):
 
             if id_order == order_id:  # Ensure order_id matches
                 order_found = True
-                product_items_list['order_track'] = ordertrack  # Update tracking status
+                # product_items_list['order_track'] = ordertrack  # Update tracking status
 
                 for product in product_items_list.get("products", []):
                     proid = int(product.get("product_id", 0))  # Ensure product_id is an integer
@@ -1293,8 +1293,12 @@ class UpdateOrderStatus(APIView):
 
                     updated = True
 
-                # Save changes if any updates were made
+                    # Save changes if any updates were made
                 if updated:
+                    product_items_list['order_track'] = (
+                        "Accept" if any(p["order_status"] == "Accept" for p in product_items_list["products"]) else "Reject"
+                        )
+                    
                     order.product_items = product_items_list
                     order.save(update_fields=["product_items"])  # Save only the modified field
                     print(f"Order {order.id} updated successfully")
@@ -1312,7 +1316,8 @@ class UpdateOrderStatus(APIView):
         return Response({"message": "No updates were made"}, status=status.HTTP_400_BAD_REQUEST)
 
 class Update_tracking(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+
 
     def patch(self, request, id):
         order_loc = request.data.get('order_track')  # New status from request
