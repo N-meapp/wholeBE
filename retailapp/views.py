@@ -1320,7 +1320,7 @@ class Update_tracking(APIView):
 
 
     def patch(self, request, id):
-        order_loc = request.data.get('order_track')  # New status from request
+        order_loc = request.data.get('order_track')  # New tracking status
 
         try:
             order_list = Order_products.objects.get(id=id)  # Fetch the order
@@ -1332,17 +1332,22 @@ class Update_tracking(APIView):
 
         products = order_list.product_items  # Assuming this is a dictionary
         print('The products:', products)
-        tracking_status = ['Accept','Shipped','Packed']
+
+        # Ensure 'order_track' exists in the dictionary
+        if 'order_track' not in products:
+            return Response({'error': "'order_track' key missing in product items"}, status=status.HTTP_400_BAD_REQUEST)
+
+        tracking_status = ['Accept', 'Shipped', 'Packed']
+        
         if products['order_track'] in tracking_status:
-            products['order_track'] = order_loc  # Update order tracking
+            products['order_track'] = order_loc  # Update tracking status
             order_list.product_items = products  # Assign updated dict
             order_list.save(update_fields=['product_items'])  # Save changes
 
             return Response({'message': 'Order status updated successfully', 'updated_product_items': products},
                             status=status.HTTP_200_OK)
-
-        return Response({'error': 'No products with tracking status found'},
-                        status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({'error': 'Invalid order tracking status'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 
